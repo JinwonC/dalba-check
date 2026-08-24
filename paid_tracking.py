@@ -148,6 +148,27 @@ def main():
         with_retry(lambda: dst.spreadsheet.values_batch_update(
             {"valueInputOption": "USER_ENTERED", "data": part}), "트래킹 기록")
         print(f"    기록 진행 {min(i+500, len(updates))}/{len(updates)}", flush=True)
+
+    # 숫자 서식 정리 (값은 그대로, 표시형식만): M,N=정수 / O,P=퍼센트 / Q,R=$ / S=소수 / T=정수
+    last_row = len(col_vals)                     # 0-based exclusive end == 시트 마지막 데이터행
+    if last_row > DST_HEADER_ROW:
+        fmt_map = {
+            12: "#,##0", 13: "#,##0",            # M Impression, N Click
+            14: '0.00"%"', 15: '0.00"%"',        # O CTR, P CVR
+            16: '"$"#,##0.00', 17: '"$"#,##0.00',  # Q 광고비, R Revenue
+            18: "0.00", 19: "#,##0",             # S ROI, T Order
+        }
+        reqs = [{
+            "repeatCell": {
+                "range": {"sheetId": dst.id, "startRowIndex": DST_HEADER_ROW, "endRowIndex": last_row,
+                          "startColumnIndex": c, "endColumnIndex": c + 1},
+                "cell": {"userEnteredFormat": {"numberFormat": {"type": "NUMBER", "pattern": pat}}},
+                "fields": "userEnteredFormat.numberFormat",
+            }
+        } for c, pat in fmt_map.items()]
+        with_retry(lambda: dst.spreadsheet.batch_update({"requests": reqs}), "서식")
+        print("  숫자 서식 적용 완료 (M·N 정수 / O·P %  / Q·R $ / S·T 숫자)", flush=True)
+
     print(f"  ✅ 완료 — {matched}개 행 M~T 기록", flush=True)
 
 
