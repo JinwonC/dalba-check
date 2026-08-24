@@ -1,0 +1,25 @@
+name: PAID Tracking Fill
+
+# 'PAID 성과 트래킹 (GMV)' 탭의 M~T를 광고소재성과 집계로 채움
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "dry(계산·샘플만) 또는 write(실제 기록)"
+        required: false
+        default: 'dry'
+
+jobs:
+  fill:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: claude/bypass-sheets-timeout-8nw21
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: pip install gspread google-auth
+      - run: echo '${{ secrets.SERVICE_ACCOUNT_JSON }}' > service_account.json
+      - run: python paid_tracking.py "${{ github.event.inputs.mode }}"
