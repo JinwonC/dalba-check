@@ -1,5 +1,5 @@
 // GET /api/videos?from=YYYY-MM-DD&to=YYYY-MM-DD&minGmv=0
-import { readVideoTable, readReviews } from '../../lib/sheets';
+import { readVideoTable, readReviews, peek, peekTabs } from '../../lib/sheets';
 
 function num(x) {
   const v = parseFloat(String(x == null ? '' : x).replace(/[$,%\s]/g, ''));
@@ -19,6 +19,12 @@ export default async function handler(req, res) {
     return res.status(401).json({ error: 'unauthorized' });
   }
   try {
+    if (req.query.debug === 'peektabs' && req.query.sid) {
+      return res.status(200).json(await peekTabs(req.query.sid));
+    }
+    if (req.query.debug === 'peek' && req.query.sid && req.query.range) {
+      return res.status(200).json(await peek(req.query.sid, req.query.range));
+    }
     const { header, rows } = await readVideoTable();
     const reviews = await readReviews();
     const H = {};
