@@ -141,7 +141,7 @@ export default function Home() {
         <table style={{ borderCollapse: 'collapse', width: '100%', fontSize: 13 }}>
           <thead>
             <tr style={{ background: '#f5f5f7', textAlign: 'left' }}>
-              {['영상', '크리에이터', '핸들', '상품ID', '게시일', '조회수', 'GMV', 'GPM', '판매수량', '주문수', 'CTR', '평가', '특이사항'].map((h) => (
+              {['영상', '핸들', '상품ID', '게시일', '조회수', 'GMV', 'GPM', '주문수', '평가', '특이사항'].map((h) => (
                 <th key={h} style={th}>{h}</th>
               ))}
             </tr>
@@ -151,7 +151,7 @@ export default function Home() {
               <VideoRow key={v.id} v={v} review={reviews[v.id]} onRate={onRate} onNote={onNote} />
             ))}
             {!rows.length && !loading && (
-              <tr><td colSpan={13} style={{ ...td, color: '#999', padding: 30, textAlign: 'center' }}>데이터 없음 — 날짜/최소GMV를 조정하세요</td></tr>
+              <tr><td colSpan={10} style={{ ...td, color: '#999', padding: 30, textAlign: 'center' }}>데이터 없음 — 날짜/최소GMV를 조정하세요</td></tr>
             )}
           </tbody>
         </table>
@@ -178,16 +178,13 @@ const VideoRow = memo(function VideoRow({ v, review, onRate, onNote }) {
           {v.title ? v.title.slice(0, 40) : '(제목없음)'}
         </a>
       </td>
-      <td style={td}>{v.creator}</td>
       <td style={td}>{v.handle}</td>
       <td style={{ ...td, fontFamily: 'monospace', fontSize: 11, maxWidth: 140, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={v.product}>{v.product}</td>
       <td style={td}>{v.postDate}</td>
       <td style={tdR}>{fmt(v.views)}</td>
       <td style={{ ...tdR, fontWeight: 600 }}>{money(v.gmv)}</td>
       <td style={tdR}>{v.gpm ? '$' + v.gpm.toFixed(2) : '-'}</td>
-      <td style={tdR}>{fmt(v.units)}</td>
       <td style={tdR}>{fmt(v.orders)}</td>
-      <td style={tdR}>{v.ctr}</td>
       <td style={td}>
         <div style={{ display: 'flex', gap: 3 }}>
           {RATINGS.map((rt) => (

@@ -20,14 +20,6 @@ export default async function handler(req, res) {
   }
   try {
     const { header, rows } = await readVideoTable();
-    if (req.query.debug === 'header') {
-      const cols = header.map((h, i) => {
-        let n = i + 1, s = '';
-        while (n) { const r = (n - 1) % 26; s = String.fromCharCode(65 + r) + s; n = Math.floor((n - 1) / 26); }
-        return `${s}: ${h}`;
-      });
-      return res.status(200).json({ colCount: header.length, cols });
-    }
     const reviews = await readReviews();
     const H = {};
     header.forEach((h, i) => { H[String(h).trim()] = i; });
