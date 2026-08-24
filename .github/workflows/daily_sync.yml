@@ -106,3 +106,15 @@ jobs:
           done
           echo "::error::video_perf_upsert.py 3회 모두 실패"
           exit 1
+
+      # PAID 성과 트래킹 (GMV) 탭 M~T 채움 — 광고소재성과(위 tiktok_ads가 갱신)를 영상ID로 집계
+      - name: Run paid_tracking.py (PAID 트래킹 M~T)
+        if: ${{ !cancelled() }}
+        run: |
+          for i in 1 2 3; do
+            python paid_tracking.py write && exit 0
+            echo "::warning::paid_tracking.py 실패 (${i}/3회차), 30초 후 재시도..."
+            sleep 30
+          done
+          echo "::error::paid_tracking.py 3회 모두 실패"
+          exit 1
