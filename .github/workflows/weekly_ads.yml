@@ -1,0 +1,19 @@
+name: Weekly Ads Summary
+
+on:
+  workflow_dispatch:
+
+jobs:
+  ads:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: claude/bypass-sheets-timeout-8nw21
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: pip install gspread google-auth
+      - run: echo '${{ secrets.SERVICE_ACCOUNT_JSON }}' > service_account.json
+      - run: python weekly_ads.py
