@@ -1,17 +1,22 @@
-"""반반패드(PID 1732397321053967068) 34주차 vs 35주차 주간 광고/발행 집계.
+"""반반패드(PID) 34주차 vs 35주차 주간 집계 — 최신 광고소재성과에서 직접.
 
-- 소스: 'PAID 성과 트래킹 (GMV)' 시트 (헤더 2행, 3행부터 데이터).
-  · H열=발행일 → 주차별 발행 건수
-  · U열~ 주차 블록(각 8열: Imp,Click,CTR,CVR,광고비,Revenue,ROI,Order)
-    → 1행 라벨로 34/35주차 블록 찾아 광고비/매출/주문 합산
+- PID 영상 집합: pickdi video list(products에 PID 포함)의 id + 발행일
+- 광고비/매출/주문: 광고소재성과에서 소재ID가 PID 영상집합에 속하고 날짜가 해당 주차인 행 합산
+- 발행량: pickdi에서 PID 영상의 video_post_time이 해당 주차인 건수
 """
+import re
 import gspread
 from google.oauth2.service_account import Credentials
 
 SA = "service_account.json"
-SID = "1JFq6m2-rvSpiGKQsTpr91Hj-RckHpqFfEl_BLkQI_hs"
-TAB = "PAID 성과 트래킹 (GMV)"
-HEADER_ROW = 2
+PID = "1732397321053967068"
+
+VID_SID = "1_qkd6LZ1wFoihhJSuYdabQ4iRbx-jsFYVxeGIoEb-_g"
+VID_TAB = "pickdi video list"
+VID_HEADER_ROW = 2
+
+ADS_SID = "1AhVPPUq6Npri72uhtFcOUVMBl1jA7nf2P0qDCDRRKfA"
+ADS_TAB = "광고소재성과"
 
 WEEKS = {
     "34주차 (8/17~8/23)": ("2026-08-17", "2026-08-23"),
@@ -27,66 +32,81 @@ def num(x):
         return 0.0
 
 
-def norm(x):
+def d10(x):
     s = str(x if x is not None else "").strip()
-    import re
     m = re.search(r"(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})", s)
-    if m:
-        return f"{m.group(1)}-{int(m.group(2)):02d}-{int(m.group(3)):02d}"
-    return s[:10]
+    return f"{m.group(1)}-{int(m.group(2)):02d}-{int(m.group(3)):02d}" if m else s[:10]
+
+
+def wk_of(d):
+    for wk, (a, b) in WEEKS.items():
+        if a <= d <= b:
+            return wk
+    return None
 
 
 def main():
     creds = Credentials.from_service_account_file(SA, scopes=["https://www.googleapis.com/auth/spreadsheets"])
-    ws = gspread.authorize(creds).open_by_key(SID).worksheet(TAB)
-    vals = ws.get_all_values()
-    row1 = vals[0] if vals else []
-    header = vals[HEADER_ROW - 1] if len(vals) >= HEADER_ROW else []
-    data = vals[HEADER_ROW:]
+    gc = gspread.authorize(creds)
 
-    # 발행일 컬럼
-    def hidx(name):
-        return header.index(name) if name in header else -1
-    i_post = -1
-    for cand in ("video_post_time", "발행일", "post_time"):
-        if cand in header:
-            i_post = header.index(cand); break
-    # 트래킹시트는 발행일이 H열(=index 7)
-    if i_post < 0:
-        i_post = 7
+    # 1) PID 영상 집합 + 주차별 발행량
+    vv = gc.open_by_key(VID_SID).worksheet(VID_TAB).get_all_values()
+    vh = vv[VID_HEADER_ROW - 1] if len(vv) >= VID_HEADER_ROW else []
+    def vi(n): return vh.index(n) if n in vh else -1
+    i_id, i_prod, i_post = vi("id"), vi("products"), vi("video_post_time")
+    pid_vids = set()
+    posts = {wk: 0 for wk in WEEKS}
+    for r in vv[VID_HEADER_ROW:]:
+        if i_prod < 0 or i_id < 0 or i_prod >= len(r) or i_id >= len(r):
+            continue
+        if PID not in str(r[i_prod]):
+            continue
+        vid = str(r[i_id]).strip().lstrip("'")
+        if vid:
+            pid_vids.add(vid)
+        if i_post >= 0 and i_post < len(r):
+            wk = wk_of(d10(r[i_post]))
+            if wk:
+                posts[wk] += 1
+    print(f"PID 영상 집합: {len(pid_vids)}개 (pickdi products∋PID)", flush=True)
 
-    # 주차 블록 시작 컬럼 찾기 (1행 라벨에 'NN주차')
-    block_start = {}
-    for ci, lab in enumerate(row1):
-        for wk in WEEKS:
-            code = wk.split()[0]  # '34주차'
-            if code in str(lab):
-                block_start[wk] = ci
-    print(f"발행일 컬럼 index={i_post} ({header[i_post] if i_post < len(header) else '?'})", flush=True)
-    print(f"주차 블록 시작열: { {k: v for k,v in block_start.items()} }", flush=True)
+    # 2) 광고소재성과에서 PID 영상만 주차별 합산
+    av = gc.open_by_key(ADS_SID).worksheet(ADS_TAB).get_all_values()
+    ah = av[0] if av else []
+    def ai(*c):
+        for x in c:
+            if x in ah: return ah.index(x)
+        return -1
+    a_d, a_id = ai("날짜"), ai("소재ID")
+    a_cost, a_rev, a_ord = ai("지출금액"), ai("총매출(GMV)", "총매출"), ai("주문수")
+    dmin, dmax = "9999", "0000"
+    agg = {wk: [0.0, 0.0, 0.0] for wk in WEEKS}
+    for r in av[1:]:
+        if a_id >= len(r) or a_d >= len(r):
+            continue
+        vid = str(r[a_id]).strip().lstrip("'")
+        if vid not in pid_vids:
+            continue
+        d = d10(r[a_d])
+        dmin, dmax = min(dmin, d), max(dmax, d)
+        wk = wk_of(d)
+        if not wk:
+            continue
+        g = agg[wk]
+        g[0] += num(r[a_cost]) if a_cost >= 0 and a_cost < len(r) else 0
+        g[1] += num(r[a_rev]) if a_rev >= 0 and a_rev < len(r) else 0
+        g[2] += num(r[a_ord]) if a_ord >= 0 and a_ord < len(r) else 0
+    print(f"광고소재성과 날짜범위: {dmin} ~ {dmax}", flush=True)
 
-    # 집계
-    for wk, (a, b) in WEEKS.items():
-        posts = 0
-        cost = rev = orders = 0.0
-        c0 = block_start.get(wk)
-        for r in data:
-            # 발행 건수
-            if i_post < len(r):
-                d = norm(r[i_post])
-                if a <= d <= b:
-                    posts += 1
-            # 광고 지표 (블록: +4=광고비 +5=Rev +7=Order)
-            if c0 is not None:
-                if c0 + 4 < len(r): cost += num(r[c0 + 4])
-                if c0 + 5 < len(r): rev += num(r[c0 + 5])
-                if c0 + 7 < len(r): orders += num(r[c0 + 7])
-        roi = (rev / cost) if cost else 0
+    print("\n=== 반반패드 PID 주간 (발행 / 광고비 / 광고매출 / 주문 / ROI) ===", flush=True)
+    for wk in WEEKS:
+        c, rv, o = agg[wk]
+        roi = (rv / c) if c else 0
         print(f"\n[{wk}]", flush=True)
-        print(f"  발행 영상: {posts}건", flush=True)
-        print(f"  광고비:   ${cost:,.2f}", flush=True)
-        print(f"  광고매출: ${rev:,.2f}", flush=True)
-        print(f"  광고주문: {orders:,.0f}", flush=True)
+        print(f"  발행 영상: {posts[wk]}건", flush=True)
+        print(f"  광고비:   ${c:,.2f}", flush=True)
+        print(f"  광고매출: ${rv:,.2f}", flush=True)
+        print(f"  광고주문: {o:,.0f}", flush=True)
         print(f"  ROI:      {roi:.2f}", flush=True)
 
 
