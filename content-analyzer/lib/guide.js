@@ -73,11 +73,11 @@ const GUIDE_SCHEMA = {
     },
     steps: {
       type: 'array',
-      description: '바디 스텝만. 훅은 hook_options에서만 다루고 steps에는 넣지 않는다. 각 스텝 = 바디 레퍼런스(우리 영상)의 비트를 순서·소구순서 그대로 복제(문장 보존). 구조를 재배열하지 말 것.',
+      description: '바디 스텝만(훅 제외 — 훅은 hook_options에서만). 아래 "검증된 보편 골격(canonical skeleton)"을 기본 순서로 따른다. 이건 problem→solution 흐름이고 "제품이 아니라 욕망을 판다"가 핵심. 순서: (1) Desire — 문제·페인포인트를 증폭해 욕구 자극(훅이 던진 문제를 후벼서 키움; 훅 문구 반복 금지) (2) Personal — "나도 이랬는데 이렇게 해결함", 여기서 제품이 해결책으로 등장 (3) Ingredient — 왜 진짜 효과있는지 "증거"로(스펙 나열 X, 감정 결과 O) (4) Result — 비포/애프터·결과 페이오프 (5) Social proof — 남들의 결과·리뷰·바이럴 (6) CTA. 레퍼런스 영상은 각 비트의 "문장·소구·클레임을 채우는 재료"다. 영상 구조가 이 골격과 다르면 골격을 우선한다. 재료가 정말 없는 비트는 지어내지 말고 생략 가능.',
       items: {
         type: 'object',
         properties: {
-          name: { type: 'string', description: '스텝 이름(영어 짧게): Education, Ingredient, Demo, Social Proof, CTA 등. 바디 레퍼런스 비트 이름 반영.' },
+          name: { type: 'string', description: '스텝 이름(영어 짧게): 골격 순서 반영 — Desire, Personal, Ingredient, Result, Social Proof, CTA 등.' },
           layer: { type: 'string', description: '항상 "body". (훅은 steps에 넣지 않는다.)' },
           directive: { type: 'string', description: '촬영 지시(English). 스타일 레이어(디렉션)를 여기에 반영. 대사는 바꾸지 않음.' },
           text_overlay: { type: 'string', description: '화면 텍스트 오버레이(크리에이터 언어). 그 비트의 바디 레퍼런스 영상에 실제 화면 텍스트/이미지 오버레이가 있었을 때만 채운다(visual 설명의 화면텍스트 근거). 없으면 반드시 빈 문자열.' },
@@ -97,7 +97,7 @@ const GUIDE_SCHEMA = {
           },
           emotion_applied: { type: 'boolean', description: '이 스텝 대사에 감정 필터로 스펙→감정 치환을 적용했으면 true.' },
           time_budget: { type: 'string', description: '목표 시간 구간(예: "0:00–0:03"). 바디 레퍼런스 페이싱에 맞춤.' },
-          reference_hint: { type: 'string', description: '무엇을 참고해 찍을지(English): 예 "like beat N of our reference video".' },
+          reference_hint: { type: 'string', description: '이 비트를 어떤 재료로 채웠는지(English): 예 "from our reference video\'s ingredient beat" 또는 "product claim".' },
           our_angle: { type: 'string', description: '이 스텝의 우리 제품 소구 한 줄(English).' },
         },
         required: ['name', 'layer', 'directive', 'text_overlay', 'pip', 'say', 'emotion_applied', 'time_budget', 'reference_hint', 'our_angle'],
@@ -149,11 +149,17 @@ const SYSTEM = `너는 d'Alba Piedmont의 시니어 숏폼 크리에이티브 �
 - 훅은 hook_options 3안에서만 다룬다. steps 안에는 훅 스텝을 절대 넣지 말 것(중복 금지).
 - 훅의 text_overlay도 스택 훅에 오버레이가 있을 때만. 비어 있으면 그대로 비워둔다.
 
-[레이어 2 · 바디] — 입력으로 "우리 잘 된 레퍼런스 영상"의 구조가 주어진다.
-- steps는 전부 바디 스텝이다. 이 영상의 비트 순서·소구 순서·문장을 "그대로 복제"한다. 구조를 재배열하거나 새 비트를 지어내지 말 것.
-- 원문 대사(say)를 최대한 보존한다. 훅만 레이어1 것으로 교체하고, 교육파트/소셜프루프/CTA 흐름은 손대지 않는다.
-- 단, "제품 소개·성분 설명" 비트의 대사에는 아래 감정 필터를 적용한다(구조·순서는 유지, 문장 표현만 감정형으로). emotion_applied=true로 표시.
-- text_overlay(화면 텍스트/이미지)는 항상 넣지 않는다. 바디 레퍼런스 영상의 그 비트 visual에 실제 화면 텍스트나 이미지 오버레이가 있었을 때만 그걸 근거로 추천하고, 없으면 text_overlay를 빈 문자열로 둔다. 지어내서 채우지 말 것.
+[레이어 2 · 바디] — 입력으로 "우리 잘 된 레퍼런스 영상"이 주어진다. 이건 '구조'가 아니라 '내용(문장·소구·클레임) 소스'로 쓴다.
+- steps는 아래 "검증된 보편 골격"을 기본 순서로 따른다. problem→solution 흐름. 제품이 아니라 욕망을 판다.
+  (1) Desire — 문제·페인포인트를 증폭해 욕구를 자극한다. 훅이 던진 문제를 여기서 후벼서 키운다(훅 문구를 그대로 반복하지 말 것 — 던지고→키우고).
+  (2) Personal — "나도 이랬는데 이렇게 해결함"의 개인 경험. 여기서 우리 제품이 해결책으로 자연스럽게 등장한다.
+  (3) Ingredient — 왜 진짜 효과있는지 "증거"로. 성분·스펙 나열이 아니라, 감정 필터를 적용해 "그래서 이런 변화가 온다"로. emotion_applied=true.
+  (4) Result — 비포/애프터·결과 페이오프를 짧게 보여준다.
+  (5) Social proof — 남들의 결과·리뷰·바이럴 반응.
+  (6) CTA — 지금 뭘 하라.
+- 레퍼런스 영상은 각 비트의 "문장·소구·클레임을 채우는 재료"다. 영상에서 쓸 수 있는 원문 대사(say)는 최대한 보존해 해당 골격 비트에 배치한다. 영상 구조가 이 골격과 다르면 골격을 우선한다.
+- 영상·제품정보에 재료가 정말 없는 비트(예: 결과·소셜프루프)는 지어내지 말 것. 없는 수치·거짓 후기·과장 단정 금지. 재료가 없으면 그 스텝은 생략 가능.
+- text_overlay(화면 텍스트/이미지)는 항상 넣지 않는다. 그 비트의 재료가 된 레퍼런스 영상 visual에 실제 화면 텍스트나 이미지 오버레이가 있었을 때만 그걸 근거로 추천하고, 없으면 text_overlay를 빈 문자열로 둔다. 지어내서 채우지 말 것.
 
 [레이어 3 · 스타일] — 입력으로 특정 크리에이터의 촬영/편집 스타일(DNA)이 주어진다.
 - 이건 대사가 아니라 톤/리듬이다. 절대 훅·바디의 "대사 자체"를 바꾸지 않는다.
@@ -178,7 +184,7 @@ function bodyDigest(meta, report) {
   return `우리 레퍼런스 영상 @${meta?.author || '?'} | 길이 ${meta?.durationSeconds ?? '?'}s
 요약: ${r.summary || ''}
 오프닝 화면텍스트(있으면): ${r.hook_breakdown?.text_overlay || '(없음)'}
-비트(순서 그대로 — 이 순서·문장을 복제, 첫 훅 비트만 레이어1으로 교체):
+비트(내용 재료 — 이 문장·소구·클레임을 골격 비트에 배치. 구조를 그대로 베끼지 말 것):
 ${scenes || '  (none)'}
 설득 구조: ${r.persuasion?.structure || ''}
 키워드: ${kw}`;
@@ -243,7 +249,7 @@ ${(productInfo || '(없음 — 바디 레퍼런스에서 클레임 추출)').sli
 
 지시:
 1) hook_options = 위 스택 훅 3안 그대로. 훅은 hook_options에만, steps에는 훅 스텝을 넣지 마라(중복 금지).
-2) steps = 바디 레퍼런스 비트를 순서·문장 그대로 복제. 제품·성분 설명 비트에만 감정 필터 적용(emotion_applied=true), 나머지는 원문 보존.
+2) steps = 검증된 보편 골격 순서로: Desire(욕구 자극) → Personal(개인 해결→제품 등장) → Ingredient(효과의 증거·감정필터) → Result(비포/애프터) → Social proof → CTA. 레퍼런스 영상·제품정보를 각 비트의 재료로 채운다. 성분/스펙 비트엔 감정 필터 적용(emotion_applied=true). 재료 없는 비트는 지어내지 말고 생략.
 3) 스타일은 style_direction + 각 스텝 directive/pip로만. 대사는 절대 바꾸지 마라.
 4) say/overlay 언어는 바디 레퍼런스 언어로 통일. 그 외 모든 설명 필드(label/directive/pip/our_angle/reference_hint/rationale/structure_summary/style_direction/tips)는 영어로. 한국어 출력 금지.`;
 
