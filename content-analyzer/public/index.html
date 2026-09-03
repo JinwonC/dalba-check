@@ -261,6 +261,19 @@
   .slayer.hook{background:#fef3c7;color:#92400e}
   .slayer.body{background:#dcfce7;color:#166534}
   .semo{font-size:10.5px;font-weight:700;background:#fee2e2;color:#b91c1c;border-radius:999px;padding:1px 8px;vertical-align:middle;margin-left:4px}
+
+  .brief.editing{outline:2px dashed var(--gold);outline-offset:4px}
+  .brief.editing [contenteditable]{cursor:text}
+  .htoggle.on{background:var(--slate);color:#fff;border-color:var(--slate)}
+  .editnote{max-width:900px;margin:0 auto 10px;padding:8px 12px;background:var(--gold-soft);border:1px solid #efe4cd;border-radius:9px;font-size:12.5px;color:#7a5a1e;text-align:center}
+  @media print {
+    header.top, .tabs, .bar, .hint, #status, #batchbar, #history, #layout, #guidePanel, .gbar-actions, .editnote, .foot { display:none !important; }
+    body{background:#fff}
+    .gresult{margin:0;padding:0;max-width:none}
+    .brief{border:0;border-radius:0;max-width:none;margin:0}
+    .brief.editing{outline:0}
+    .step, .brief-sec, .hopt{break-inside:avoid}
+  }
 </style>
 </head>
 <body>
@@ -318,8 +331,8 @@
       </div>
 
       <div class="gsec">
-        <h3>3 · 스타일 레퍼런스 <span class="gmax">크리에이터 영상 여러 개</span></h3>
-        <p class="gdesc">섭외할 크리에이터의 영상들. <b>촬영·편집 스타일</b>(컷 속도·앵글·비주얼 훅 연출)만 뽑아 <b>대사는 안 건드리고</b> 촬영 디렉션으로만 반영해요.</p>
+        <h3>3 · 스타일 레퍼런스 <span class="gopt">선택 · 크리에이터 영상 여러 개</span></h3>
+        <p class="gdesc">(선택) 섭외할 크리에이터의 영상들. <b>촬영·편집 스타일</b>(컷 속도·앵글·연출)만 뽑아 촬영 디렉션으로만 반영해요. 비우면 스타일 레이어는 건너뜁니다.</p>
         <div class="gadd">
           <input id="gStyleUrl" type="text" placeholder="크리에이터 영상 링크 (여러 개는 줄바꿈/공백)" />
           <button class="gaddbtn" id="gStyleAdd">추가</button>
@@ -1114,10 +1127,9 @@ async function runGuide(){
   const manager=$('#gManager').value.trim(), prodName=$('#gProdName').value.trim(), productInfo=$('#gProduct').value.trim();
   if(GHOOKS.length<2){ $('#status').innerHTML='<div class="err">훅 스택은 영상 2개 이상 넣어주세요 (검증된 훅을 결합합니다).</div>'; return; }
   if(!GBODY){ $('#status').innerHTML='<div class="err">바디 레퍼런스(잘 된 우리 영상 1개)를 넣어주세요.</div>'; return; }
-  if(!GSTYLE.length){ $('#status').innerHTML='<div class="err">스타일 레퍼런스(크리에이터 영상)를 1개 이상 넣어주세요.</div>'; return; }
   $('#guideGo').disabled=true; $('#guideResult').innerHTML='';
   const jobs=[...GHOOKS.map(r=>({ref:r,role:'hook'})), {ref:GBODY,role:'body'}, ...GSTYLE.map(r=>({ref:r,role:'style'}))];
-  BATCH={ n:jobs.length+2, i:0, finished:false, items: jobs.map(j=>({label:`[${j.role}] `+(j.ref.creator?'@'+j.ref.creator:j.ref.label), status:'pending', note:''})).concat([{label:'훅 스태킹 (Gemini)',status:'pending',note:''},{label:'스타일 DNA 추출 (Gemini)',status:'pending',note:''}]) };
+  BATCH={ n:jobs.length+1+(GSTYLE.length?1:0), i:0, finished:false, items: jobs.map(j=>({label:`[${j.role}] `+(j.ref.creator?'@'+j.ref.creator:j.ref.label), status:'pending', note:''})).concat([{label:'훅 스태킹 (Gemini)',status:'pending',note:''}]).concat(GSTYLE.length?[{label:'스타일 DNA 추출 (Gemini)',status:'pending',note:''}]:[]) };
   renderBatch();
   try{
     const hookReports=[], styleReports=[]; let bodyReport=null;
@@ -1136,20 +1148,23 @@ async function runGuide(){
     }
     if(hookReports.length<2) throw new Error('훅 영상 분석을 2개 이상 못 가져왔어요.');
     if(!bodyReport) throw new Error('바디 레퍼런스 분석을 못 가져왔어요.');
-    if(!styleReports.length) throw new Error('스타일 레퍼런스 분석을 못 가져왔어요.');
     const meta={ manager, product: prodName };
     // hook stacking
     const hi=jobs.length; BATCH.i=hi; BATCH.items[hi].status='running'; renderBatch();
     $('#status').innerHTML='<div class="loading"><div class="spinner"></div>훅 스태킹 중… (Gemini)</div>';
     const hookRes = await postJSON('/api/hookstack', { hookReports:hookReports.map(r=>({meta:r.meta,report:r.report})), productInfo, meta });
     BATCH.items[hi].status='done'; BATCH.items[hi].note=`${(hookRes.hooks||[]).length}안`; renderBatch();
-    // style DNA
-    const si=hi+1; BATCH.i=si; BATCH.items[si].status='running'; renderBatch();
-    $('#status').innerHTML='<div class="loading"><div class="spinner"></div>스타일 DNA 추출 중… (Gemini)</div>';
-    const { dna } = await postJSON('/api/dna', { creatorReports: styleReports.map(r=>({meta:r.meta,report:r.report})) });
-    BATCH.items[si].status='done'; BATCH.items[si].note='완료'; BATCH.finished=true; renderBatch();
+    // style DNA (optional)
+    let dna=null;
+    if(styleReports.length){
+      const si=hi+1; BATCH.i=si; BATCH.items[si].status='running'; renderBatch();
+      $('#status').innerHTML='<div class="loading"><div class="spinner"></div>스타일 DNA 추출 중… (Gemini)</div>';
+      const r = await postJSON('/api/dna', { creatorReports: styleReports.map(x=>({meta:x.meta,report:x.report})) });
+      dna=r.dna; BATCH.items[si].status='done'; BATCH.items[si].note='완료'; renderBatch();
+    }
+    BATCH.finished=true; renderBatch();
     $('#status').innerHTML='';
-    GSTATE={ hookReports, bodyReport, styleReports, styleVideos: styleReports.filter(r=>r.video), productInfo, manager, prodName, pacing: dna.pacing||null };
+    GSTATE={ hookReports, bodyReport, styleReports, styleVideos: styleReports.filter(r=>r.video), productInfo, manager, prodName, pacing: dna&&dna.pacing||null };
     renderReviewPanel(hookRes, bodyReport, dna);
   }catch(err){ $('#status').innerHTML=`<div class="err">${esc(err.message||'1단계 실패')}</div>`; if(BATCH){BATCH.finished=true;renderBatch();} }
   finally{ $('#guideGo').disabled=false; }
@@ -1158,7 +1173,7 @@ async function runGuide(){
 // ---- review panel: hook stack (editable) + body outline + style DNA (editable) ----
 function dnaTA(id,label,val,rows,ph){ return `<div class="dnafield"><label>${label}</label><textarea id="${id}" rows="${rows||2}" placeholder="${esc(ph||'')}">${esc(val||'')}</textarea></div>`; }
 function renderReviewPanel(hookRes, bodyReport, dna){
-  dna=dna||{};
+  const hasStyle=!!dna; dna=dna||{};
   const hooks=(hookRes.hooks||[]);
   const hookCards=hooks.map((h,i)=>`
     <div class="revhook">
@@ -1185,20 +1200,20 @@ function renderReviewPanel(hookRes, bodyReport, dna){
       <p class="gdesc" style="margin:0 0 8px">이 순서·문장을 그대로 복제하고 훅만 위 스택으로 교체합니다. 제품·성분 파트엔 감정 필터 적용.</p>
       <div class="bodyoutline">${bodyOutline||'<span class="gdesc">비트 없음</span>'}</div></div>
 
-    <div class="revsec"><div class="revh">레이어 3 · 스타일 (@${esc(dna.creator||'')} 촬영 디렉션)</div>
+    ${hasStyle ? `<div class="revsec"><div class="revh">레이어 3 · 스타일 (@${esc(dna.creator||'')} 촬영 디렉션)</div>
       ${dnaTA('rvDevices','연출 장치 (한 줄 = 이름 :: 빈도 :: 사용법)',devices,3)}
       ${dnaTA('rvPips','PIP 인벤토리 (한 줄에 하나)',pips,3)}
       ${dnaTA('rvTone','톤',dna.tone,1)}
       <div class="dnafield"><label>페이싱 (실측)</label><div class="dnaread">${esc(pacingTxt)}</div></div>
       ${dnaTA('rvVisual','시각 스타일 (영상 직접 시청 결과 또는 직접 입력)',typeof dna.visual_style==='string'?dna.visual_style:'',3,'조명·배경·자막 스타일·컷 속도 등')}
-    </div>
+    </div>` : `<div class="revsec"><div class="revh">레이어 3 · 스타일 <span class="gopt">건너뜀</span></div><p class="gdesc" style="margin:0">스타일 레퍼런스를 안 넣어서 촬영 디렉션 레이어는 생략돼요.</p></div>`}
 
     <div class="gactions" style="margin-top:14px">
-      ${nVid?`<button class="htoggle" id="dnaWatch">🎥 스타일 영상 직접 시청 분석 (최대 2개)</button>`:`<span class="ghint2">저장된 스타일 영상이 없어 직접 시청 불가. 직접 입력 가능.</span>`}
+      ${hasStyle && nVid?`<button class="htoggle" id="dnaWatch">🎥 스타일 영상 직접 시청 분석 (최대 2개)</button>`:(hasStyle?`<span class="ghint2">저장된 스타일 영상이 없어 직접 시청 불가. 직접 입력 가능.</span>`:``)}
       <button class="go" id="dnaGenerate">🧩 이 레이어들로 가이드 조립</button>
     </div>
   </div>`;
-  GSTATE.hooks = hooks;
+  GSTATE.hooks = hooks; GSTATE.hasStyle = hasStyle;
   const w=$('#dnaWatch'); if(w) w.addEventListener('click',()=>runStylePassAll(w));
   $('#dnaGenerate').addEventListener('click', generateFinalGuide);
   window.scrollTo({ top: $('#guideResult').offsetTop-12, behavior:'smooth' });
@@ -1233,6 +1248,7 @@ function collectHooks(){
   }).filter(h=>h.say.length);
 }
 function collectStyleDna(){
+  if(!GSTATE || !GSTATE.hasStyle) return null;
   const lines=(id)=>($(id)?$(id).value:'').split('\n').map(x=>x.trim()).filter(Boolean);
   const trip=(id)=>lines(id).map(l=>l.split('::').map(x=>x.trim()));
   return {
@@ -1266,6 +1282,23 @@ function hlText(text, highlights){
   (highlights||[]).forEach(h=>{ const e=esc(String(h||'').replace(/\*\*/g,'').replace(/__/g,'')); if(e){ s = s.split(e).join('<em>'+e+'</em>'); } });
   return s;
 }
+function downloadGuideHtml(){
+  const brief=$('#briefDoc'); if(!brief) return;
+  brief.setAttribute('contenteditable','false'); brief.classList.remove('editing');
+  const css=[...document.querySelectorAll('style')].map(s=>s.textContent).join('\n');
+  const title = (brief.querySelector('.bsub')?.textContent || 'Contents Brief').trim();
+  const html='<!doctype html><html lang="ko"><head><meta charset="utf-8">'
+    +'<meta name="viewport" content="width=device-width, initial-scale=1">'
+    +'<title>Contents Brief — '+title.replace(/[<>&]/g,'')+'</title><style>'+css
+    +'\nbody{background:#fff;padding:24px}.brief{max-width:900px;margin:0 auto}</style></head>'
+    +'<body>'+brief.outerHTML+'</body></html>';
+  const blob=new Blob([html],{type:'text/html;charset=utf-8'});
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(blob);
+  a.download='contents-brief-'+new Date().toISOString().slice(0,10)+'.html';
+  document.body.appendChild(a); a.click();
+  setTimeout(()=>{ URL.revokeObjectURL(a.href); a.remove(); }, 1000);
+}
 function renderBrief(g, driveUrl){
   g=g||{};
   const sdir=(g.style_direction||[]).map(p=>`<div class="cpat"><span class="cpa">${esc(p.aspect)}</span><span>${esc(p.direction)}</span></div>`).join('');
@@ -1291,8 +1324,11 @@ function renderBrief(g, driveUrl){
   $('#guideResult').innerHTML = `
     <div class="gbar-actions">
       <span id="gDriveSlot"><span class="copy" style="opacity:.55;cursor:default">📄 Drive 저장 중…</span></span>
-      <button class="htoggle" id="gPrint">🖨 인쇄 / PDF</button>
+      <button class="htoggle" id="gEdit">✏️ 편집</button>
+      <button class="htoggle" id="gPrint">📄 PDF로 저장</button>
+      <button class="htoggle" id="gHtml">⬇ HTML 저장</button>
     </div>
+    <div class="editnote" id="gEditNote" style="display:none">✏️ 편집 모드 — 아무 텍스트나 클릭해 바로 고치세요. 수정한 내용이 PDF·HTML에 반영됩니다.</div>
     <div class="brief" id="briefDoc">
       <div class="brief-cover">
         <div class="bt">Contents Brief</div>
@@ -1308,7 +1344,19 @@ function renderBrief(g, driveUrl){
       ${tips?`<div class="brief-sec"><div class="brief-hwrap"><span class="brief-h hl">Tips</span></div><div style="margin-top:14px">${tips}</div></div>`:''}
       <div class="brief-sec prod"><div class="brief-h">Product</div><div class="pname">${esc(g.product?.name||'')}</div>${bullets}</div>
     </div>`;
-  const pb=$('#gPrint'); if(pb) pb.addEventListener('click',()=>window.print());
+  const brief=$('#briefDoc');
+  const eb=$('#gEdit');
+  if(eb) eb.addEventListener('click',()=>{
+    const on = brief.getAttribute('contenteditable')!=='true';
+    brief.setAttribute('contenteditable', on?'true':'false');
+    brief.classList.toggle('editing', on);
+    eb.textContent = on?'✔ 편집 완료':'✏️ 편집';
+    eb.classList.toggle('on', on);
+    const note=$('#gEditNote'); if(note) note.style.display = on?'':'none';
+    if(on) brief.focus();
+  });
+  const pb=$('#gPrint'); if(pb) pb.addEventListener('click',()=>{ brief.setAttribute('contenteditable','false'); brief.classList.remove('editing'); window.print(); });
+  const hb=$('#gHtml'); if(hb) hb.addEventListener('click', downloadGuideHtml);
   if(driveUrl){ const el=$('#gDriveSlot'); if(el) el.innerHTML=`<a class="copy" href="${esc(driveUrl)}" target="_blank" rel="noopener">📄 Drive에서 열기</a>`; }
   window.scrollTo({ top: $('#guideResult').offsetTop-12, behavior:'smooth' });
 }
