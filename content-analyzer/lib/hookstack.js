@@ -36,7 +36,7 @@ const HOOKSTACK_SCHEMA = {
         properties: {
           from: { type: 'string', description: '어느 영상/크리에이터에서 왔는지(@handle 등).' },
           original: { type: 'string', description: '훅 원문(그대로).' },
-          type: { type: 'string', description: '훅 유형(한국어): 도발/금기, 질투, 궁금증 갭, 딜, 문제제기 등.' },
+          type: { type: 'string', description: '훅 유형(English): provocation/taboo, envy, curiosity gap, deal, problem callout, etc.' },
           is_emotional: { type: 'boolean', description: '이미 감정형(검증된 감정 라인)이면 true, 성분·스펙 설명형이면 false.' },
         },
         required: ['from', 'original', 'type', 'is_emotional'],
@@ -49,7 +49,7 @@ const HOOKSTACK_SCHEMA = {
       items: {
         type: 'object',
         properties: {
-          label: { type: 'string', description: '옵션 라벨(한국어 짧게). 예: "A안 · 도발+딜 스택".' },
+          label: { type: 'string', description: '옵션 라벨(English, short). 예: "Option A · provocation + deal stack".' },
           text_overlay: { type: 'string', description: '화면 텍스트 오버레이(크리에이터가 쓸 언어).' },
           say: {
             type: 'array',
@@ -65,8 +65,8 @@ const HOOKSTACK_SCHEMA = {
             },
           },
           stacked_from: { type: 'array', items: { type: 'string' }, description: '이 안이 결합한 원본 훅들(원문 일부 인용).' },
-          emotion_note: { type: 'string', description: '감정 필터 적용 내역(한국어): 설명형을 감정으로 바꾼 부분 / 보존한 검증 라인. 없으면 "원본 감정 라인 보존".' },
-          rationale: { type: 'string', description: '왜 이 스택이 강한지(한국어 한 줄).' },
+          emotion_note: { type: 'string', description: '감정 필터 적용 내역(English): what spec-type line was turned into an emotion / which verified line was preserved. 없으면 "Preserved original emotional line".' },
+          rationale: { type: 'string', description: '왜 이 스택이 강한지(English, one line).' },
         },
         required: ['label', 'text_overlay', 'say', 'stacked_from', 'emotion_note', 'rationale'],
         propertyOrdering: ['label', 'text_overlay', 'say', 'stacked_from', 'emotion_note', 'rationale'],
@@ -110,6 +110,7 @@ export async function stackHooks({ hookReports = [], productInfo = '', language 
 - 각 안은 되도록 2개 이상의 소스 훅 요소를 결합하고, stacked_from에 어떤 원문을 썼는지 표기한다.
 - 훅은 우리 제품(아래 제품정보)에 맞게 "최소한만" 조정한다. 훅의 심리 메커니즘과 핵심 표현은 유지.
 - ${langLine}
+- 단, say/text_overlay(실제 대사·화면 텍스트)만 위 언어를 따른다. 그 외 설명 필드(label/type/emotion_note/rationale)는 영어(English)로 쓴다. 한국어 출력 금지.
 - text_overlay(화면 텍스트)는 소스 훅에 실제 오버레이 텍스트가 있을 때만 만든다. 없으면 빈 문자열로 둔다(지어내지 말 것).
 
 ${EMOTION_FILTER}

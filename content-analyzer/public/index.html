@@ -1311,12 +1311,12 @@ function renderBrief(g, driveUrl){
     </div>`).join('');
   const steps=(g.steps||[]).map((s,i)=>`
     <div class="step">
-      <div class="sname">Step ${i+1} — ${esc(s.name||'')}${s.time_budget?` <span class="stime">${esc(s.time_budget)}</span>`:''}${s.layer?` <span class="slayer ${esc(s.layer)}">${esc(s.layer)}</span>`:''}${s.emotion_applied?` <span class="semo">🫀 감정필터</span>`:''}</div>
+      <div class="sname">Step ${i+1} — ${esc(s.name||'')}${s.time_budget?` <span class="stime">${esc(s.time_budget)}</span>`:''}${s.emotion_applied?` <span class="semo">🫀 Emotion filter</span>`:''}</div>
       ${s.directive?`<div class="sdir">${esc(s.directive)}</div>`:''}
       ${s.text_overlay?`<div class="sov"><div class="lbl">Text overlay</div><div class="ovtxt">"${esc(s.text_overlay)}"</div></div>`:''}
       ${(s.say||[]).length?`<div class="say"><div class="lbl">Say :</div>${s.say.map(l=>`<div class="line">${hlText(l.text,l.highlights)}</div>`).join('')}</div>`:''}
       ${s.pip?`<div class="pipbox">🖼 <b>PIP:</b> ${esc(s.pip)}</div>`:''}
-      ${(s.reference_hint||s.our_angle)?`<div class="meta2">${s.reference_hint?`<div>🎬 <b>참고:</b> ${esc(s.reference_hint)}</div>`:''}${s.our_angle?`<div>🎯 <b>우리 소구:</b> ${esc(s.our_angle)}</div>`:''}</div>`:''}
+      ${(s.reference_hint||s.our_angle)?`<div class="meta2">${s.reference_hint?`<div>🎬 <b>Reference:</b> ${esc(s.reference_hint)}</div>`:''}${s.our_angle?`<div>🎯 <b>Our angle:</b> ${esc(s.our_angle)}</div>`:''}</div>`:''}
     </div>`).join('');
   const tips=(g.tips||[]).map(t=>`<div class="tip ${t.emphasis?'em':''}">${esc(t.text)}</div>`).join('');
   const bullets=(g.product?.bullets||[]).map(b=>`<div class="pb">✔ ${b.highlight?`<em>${esc(b.highlight)}</em> `:''}${esc(b.text)}</div>`).join('');
@@ -1335,12 +1335,12 @@ function renderBrief(g, driveUrl){
         <div class="bsub">${esc(g.product_line||'')}</div>
         <div style="margin-top:10px;font-size:16px">[ Shooting Guide ]</div>
         ${g.reference_note?`<div class="bnote">${esc(g.reference_note)}</div>`:''}
-        ${g.creator?`<div style="margin-top:10px;color:var(--muted);font-size:13px">스타일 레퍼런스: @${esc(g.creator)}</div>`:''}
+        ${g.creator?`<div style="margin-top:10px;color:var(--muted);font-size:13px">Style reference: @${esc(g.creator)}</div>`:''}
       </div>
-      ${g.structure_summary?`<div class="brief-sec"><div class="brief-hwrap"><span class="brief-h hl">3레이어 구성</span></div><p style="text-align:center;font-size:14px;margin:14px auto 0;max-width:82%">${esc(g.structure_summary)}</p></div>`:''}
-      ${hookOpts?`<div class="brief-sec"><div class="brief-hwrap"><span class="brief-h hl">Hook 3안 (스택)</span></div><div style="margin-top:16px">${hookOpts}</div></div>`:''}
+      ${g.structure_summary?`<div class="brief-sec"><div class="brief-hwrap"><span class="brief-h hl">Structure</span></div><p style="text-align:center;font-size:14px;margin:14px auto 0;max-width:82%">${esc(g.structure_summary)}</p></div>`:''}
+      ${hookOpts?`<div class="brief-sec"><div class="brief-hwrap"><span class="brief-h hl">Hook Options (3 stacked)</span></div><div style="margin-top:16px">${hookOpts}</div></div>`:''}
       <div class="brief-sec">${steps}</div>
-      ${sdir?`<div class="brief-sec"><div class="brief-hwrap"><span class="brief-h hl">🎥 스타일 디렉션</span></div><div style="margin-top:16px">${sdir}</div></div>`:''}
+      ${sdir?`<div class="brief-sec"><div class="brief-hwrap"><span class="brief-h hl">🎥 Style Direction</span></div><div style="margin-top:16px">${sdir}</div></div>`:''}
       ${tips?`<div class="brief-sec"><div class="brief-hwrap"><span class="brief-h hl">Tips</span></div><div style="margin-top:14px">${tips}</div></div>`:''}
       <div class="brief-sec prod"><div class="brief-h">Product</div><div class="pname">${esc(g.product?.name||'')}</div>${bullets}</div>
     </div>`;

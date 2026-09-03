@@ -2,38 +2,38 @@
 export function guideToPlainText(guide = {}, meta = {}) {
   const g = guide || {};
   let t = `Contents Brief\n${g.product_line || ''}\n[ Shooting Guide ]\n\n`;
-  if (meta.manager) t += `담당자: ${meta.manager}\n`;
-  if (g.creator) t += `스타일 레퍼런스: @${g.creator}\n`;
+  if (meta.manager) t += `Manager: ${meta.manager}\n`;
+  if (g.creator) t += `Style reference: @${g.creator}\n`;
   t += `\n`;
 
-  if (g.structure_summary) t += `■ 3레이어 구성\n${g.structure_summary}\n\n`;
-  if (g.reference_note) t += `핵심 지시: ${g.reference_note}\n\n`;
+  if (g.structure_summary) t += `■ Structure\n${g.structure_summary}\n\n`;
+  if (g.reference_note) t += `Key direction: ${g.reference_note}\n\n`;
 
   if ((g.style_direction || []).length) {
-    t += `■ 스타일 디렉션 (레이어 3 · 촬영/편집)\n`;
+    t += `■ Style Direction\n`;
     g.style_direction.forEach((p) => { t += `  · [${p.aspect}] ${p.direction}\n`; });
     t += `\n`;
   }
 
   if ((g.hook_options || []).length) {
-    t += `■ Hook 3안 (스택 · 레이어 1)\n`;
+    t += `■ Hook Options (3 stacked)\n`;
     g.hook_options.forEach((h) => {
       t += `  [${h.label}]\n`;
-      if (h.text_overlay) t += `    화면텍스트: ${h.text_overlay}\n`;
+      if (h.text_overlay) t += `    Text overlay: ${h.text_overlay}\n`;
       (h.say || []).forEach((l) => { t += `    Say: ${l.text}\n`; });
-      if (h.rationale) t += `    (근거: ${h.rationale})\n`;
+      if (h.rationale) t += `    (Why: ${h.rationale})\n`;
     });
     t += `\n`;
   }
 
   (g.steps || []).forEach((s, i) => {
-    t += `── Step ${i + 1} — ${s.name || ''}${s.time_budget ? ' (' + s.time_budget + ')' : ''}${s.layer ? ' [' + s.layer + ']' : ''}${s.emotion_applied ? ' ★감정필터' : ''} ──\n`;
-    if (s.directive) t += `[촬영] ${s.directive}\n`;
-    if (s.text_overlay) t += `[화면텍스트] ${s.text_overlay}\n`;
+    t += `── Step ${i + 1} — ${s.name || ''}${s.time_budget ? ' (' + s.time_budget + ')' : ''}${s.emotion_applied ? ' ★Emotion filter' : ''} ──\n`;
+    if (s.directive) t += `[Shoot] ${s.directive}\n`;
+    if (s.text_overlay) t += `[Text overlay] ${s.text_overlay}\n`;
     if (s.pip) t += `[PIP] ${s.pip}\n`;
     (s.say || []).forEach((line) => { t += `  Say: ${line.text}\n`; });
-    if (s.reference_hint) t += `  (참고: ${s.reference_hint})\n`;
-    if (s.our_angle) t += `  (우리 소구: ${s.our_angle})\n`;
+    if (s.reference_hint) t += `  (Reference: ${s.reference_hint})\n`;
+    if (s.our_angle) t += `  (Our angle: ${s.our_angle})\n`;
     t += `\n`;
   });
 
