@@ -80,7 +80,7 @@ const GUIDE_SCHEMA = {
           name: { type: 'string', description: '스텝 이름(영어 짧게): Hook, Education, Ingredient, Demo, Social Proof, CTA 등. 바디 레퍼런스 비트 이름 반영.' },
           layer: { type: 'string', description: '이 스텝의 출처 레이어: "hook" 또는 "body".' },
           directive: { type: 'string', description: '촬영 지시(한국어). 스타일 레이어(디렉션)를 여기에 반영. 대사는 바꾸지 않음.' },
-          text_overlay: { type: 'string', description: '화면 텍스트 오버레이(크리에이터 언어). 없으면 빈 문자열.' },
+          text_overlay: { type: 'string', description: '화면 텍스트 오버레이(크리에이터 언어). 바디 스텝은 그 비트의 바디 레퍼런스 영상에 실제 화면 텍스트/이미지 오버레이가 있었을 때만 채운다(visual 설명의 화면텍스트 근거). 없으면 반드시 빈 문자열. 훅 스텝은 스택 훅의 오버레이가 있을 때만.' },
           pip: { type: 'string', description: 'PIP(이미지/클립 팝업) 제안(한국어). 스타일 레이어의 실제 PIP 습관에 근거. 없으면 빈 문자열.' },
           say: {
             type: 'array',
@@ -147,11 +147,13 @@ const SYSTEM = `너는 d'Alba Piedmont의 시니어 숏폼 크리에이티브 �
 [레이어 1 · 훅] — 입력으로 "스택된 훅 3안"이 주어진다(이미 검증된 훅들을 결합한 것).
 - 이 훅들을 hook_options에 거의 그대로 넣는다. 문구를 갈아엎지 말 것.
 - Step 1(Hook)은 A안을 기본으로 채운다.
+- 훅의 text_overlay도 스택 훅에 오버레이가 있을 때만. 비어 있으면 그대로 비워둔다.
 
 [레이어 2 · 바디] — 입력으로 "우리 잘 된 레퍼런스 영상"의 구조가 주어진다.
 - 바디 스텝(Step 2~)은 이 영상의 비트 순서·소구 순서·문장을 "그대로 복제"한다. 구조를 재배열하거나 새 비트를 지어내지 말 것.
 - 원문 대사(say)를 최대한 보존한다. 훅만 레이어1 것으로 교체하고, 교육파트/소셜프루프/CTA 흐름은 손대지 않는다.
 - 단, "제품 소개·성분 설명" 비트의 대사에는 아래 감정 필터를 적용한다(구조·순서는 유지, 문장 표현만 감정형으로). emotion_applied=true로 표시.
+- text_overlay(화면 텍스트/이미지)는 항상 넣지 않는다. 바디 레퍼런스 영상의 그 비트 visual에 실제 화면 텍스트나 이미지 오버레이가 있었을 때만 그걸 근거로 추천하고, 없으면 text_overlay를 빈 문자열로 둔다. 지어내서 채우지 말 것.
 
 [레이어 3 · 스타일] — 입력으로 특정 크리에이터의 촬영/편집 스타일(DNA)이 주어진다.
 - 이건 대사가 아니라 톤/리듬이다. 절대 훅·바디의 "대사 자체"를 바꾸지 않는다.
@@ -175,6 +177,7 @@ function bodyDigest(meta, report) {
   const kw = (r.keywords || []).map((k) => `${k.keyword} (${k.note})`).join('; ');
   return `우리 레퍼런스 영상 @${meta?.author || '?'} | 길이 ${meta?.durationSeconds ?? '?'}s
 요약: ${r.summary || ''}
+오프닝 화면텍스트(있으면): ${r.hook_breakdown?.text_overlay || '(없음)'}
 비트(순서 그대로 — 이 순서·문장을 복제, 첫 훅 비트만 레이어1으로 교체):
 ${scenes || '  (none)'}
 설득 구조: ${r.persuasion?.structure || ''}

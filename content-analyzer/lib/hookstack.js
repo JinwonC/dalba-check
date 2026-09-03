@@ -110,6 +110,7 @@ export async function stackHooks({ hookReports = [], productInfo = '', language 
 - 각 안은 되도록 2개 이상의 소스 훅 요소를 결합하고, stacked_from에 어떤 원문을 썼는지 표기한다.
 - 훅은 우리 제품(아래 제품정보)에 맞게 "최소한만" 조정한다. 훅의 심리 메커니즘과 핵심 표현은 유지.
 - ${langLine}
+- text_overlay(화면 텍스트)는 소스 훅에 실제 오버레이 텍스트가 있을 때만 만든다. 없으면 빈 문자열로 둔다(지어내지 말 것).
 
 ${EMOTION_FILTER}
 훅에서는 특히: 이미 감정형인 검증된 훅 원문은 절대 바꾸지 말고 보존. 성분·스펙 나열형 라인만 감정 결과로 치환.`;
