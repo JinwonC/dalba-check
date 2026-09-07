@@ -1,0 +1,17 @@
+name: Pickdi Check
+on:
+  workflow_dispatch:
+jobs:
+  chk:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: claude/bypass-sheets-timeout-8nw21
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: pip install gspread google-auth
+      - run: echo '${{ secrets.SERVICE_ACCOUNT_JSON }}' > service_account.json
+      - run: python pickdi_check.py
