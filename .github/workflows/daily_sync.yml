@@ -56,12 +56,16 @@ jobs:
           exit 1
 
       # 앞 스텝이 실패해도 광고/SKU 데이터는 반드시 적재되도록 !cancelled() 로 독립 실행
-      - name: Run SKU별_성과.py (어제 날짜)
+      # SKU는 확정이 ~1일 늦으므로 '최근 4일'을 재조회 + 날짜기준 upsert (지연/누락 자동복구)
+      - name: Run SKU별_성과.py (최근 4일 upsert)
         if: ${{ !cancelled() }}
         working-directory: .
         run: |
+          E="${{ steps.date.outputs.yesterday }}"
+          S=$(date -d "$E -3 days" '+%Y-%m-%d')
+          echo "::notice::SKU upsert window $S ~ $E"
           for i in 1 2 3; do
-            python TEST/SKU별_성과.py ${{ steps.date.outputs.yesterday }} && exit 0
+            python TEST/SKU별_성과.py "$S ~ $E" && exit 0
             echo "::warning::SKU별_성과.py 실패 (${i}/3회차), 30초 후 재시도..."
             sleep 30
           done
