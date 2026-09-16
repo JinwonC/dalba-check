@@ -1,3 +1,8 @@
 __pycache__/
 *.pyc
 *.pyo
+
+# 시크릿 (절대 커밋 금지) — 런타임에 생성/주입되는 토큰·서비스계정
+tokens.json
+ads_tokens.json
+service_account.json
