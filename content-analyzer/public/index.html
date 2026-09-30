@@ -408,7 +408,7 @@
     </div>
     <div id="rResult"><div class="rempty">GMV를 입력하면 비슷한 GMV 구간의 실제 협업 단가로 추천 단가·하한·상한을 계산해요.</div></div>
     <div class="rsec" id="rPeersSec" style="display:none"><h3 id="rPeersTitle">비슷한 구간에서 협업한 크리에이터</h3><div class="rtwrap" id="rPeers"></div></div>
-    <div class="rsec"><h3>GMV 구간별 개당 단가표</h3><div class="rtwrap" id="rTable"><div class="rempty" style="border:0;margin:0">불러오는 중…</div></div></div>
+    <div class="rsec"><h3>GMV 구간별 개당 단가표 <span style="font-weight:400;font-size:12px;color:var(--muted)">· 하한/추천/상한은 구간 대표 GMV 기준 추정 · 실제 범위는 그 구간 실제 계약 최저~최고</span></h3><div class="rtwrap" id="rTable"><div class="rempty" style="border:0;margin:0">불러오는 중…</div></div></div>
     <div class="rsrc" id="rSrc"></div>
   </div>
 
@@ -1421,15 +1421,6 @@ const R_BANDS = [0, 10000, 25000, 50000, 100000, 200000, 500000, Infinity];
 const usd = (v)=> v==null ? '—' : '$' + Math.round(v).toLocaleString();
 const usd5 = (v)=> v==null ? '—' : '$' + (Math.round(v/5)*5).toLocaleString();
 const kfmt = (v)=> v>=1000 ? '$' + (v/1000).toLocaleString(undefined,{maximumFractionDigits:1}) + 'K' : '$' + Math.round(v);
-function pctl(sorted, p){
-  if(!sorted.length) return null;
-  const i=(sorted.length-1)*p, lo=Math.floor(i), hi=Math.ceil(i);
-  return sorted[lo] + (sorted[hi]-sorted[lo])*(i-lo);
-}
-function rStats(deals){
-  const ps = deals.map(d=>d.perVideo).sort((a,b)=>a-b);
-  return { n: ps.length, lo: pctl(ps,.25), mid: pctl(ps,.5), hi: pctl(ps,.75), min: ps[0], max: ps[ps.length-1] };
-}
 function rFiltered(){
   const all = $('#rAll').checked;
   return (RATES?.deals||[]).filter(d=> !R_TYPES_OFF.has(d.type) && (all || d.closed));
@@ -1443,15 +1434,57 @@ function rNeighbors(deals, x){
   const near = [...deals].sort((a,b)=> Math.abs(Math.log(a.gmv/x)) - Math.abs(Math.log(b.gmv/x))).slice(0,8);
   return { list: near, basis: `GMV가 가장 가까운 ${near.length}건` };
 }
-/** Log-log trend across all filtered deals: perVideo ≈ a · GMV^b. */
-function rTrend(deals, x){
+/** Weighted quantile (midpoint interpolation). */
+function wQuantile(vals, ws, p){
+  const o = vals.map((v,i)=>[v,ws[i]]).sort((a,b)=>a[0]-b[0]);
+  const W = o.reduce((s,x)=>s+x[1],0);
+  let c = 0; const pos = o.map(([v,w])=>{ const m=(c+w/2)/W; c+=w; return [m,v]; });
+  if(p<=pos[0][0]) return pos[0][1];
+  if(p>=pos[pos.length-1][0]) return pos[pos.length-1][1];
+  for(let k=1;k<pos.length;k++) if(pos[k][0]>=p){ const [m0,v0]=pos[k-1], [m1,v1]=pos[k]; return v0+(v1-v0)*(p-m0)/(m1-m0); }
+}
+/** Pool-adjacent-violators: closest non-decreasing sequence. */
+function isotonic(y){
+  const bl = y.map(v=>({s:v,n:1}));
+  for(let i=0;i<bl.length-1;){
+    if(bl[i].s/bl[i].n > bl[i+1].s/bl[i+1].n){ bl[i].s+=bl[i+1].s; bl[i].n+=bl[i+1].n; bl.splice(i+1,1); if(i>0) i--; }
+    else i++;
+  }
+  return bl.flatMap(b=>Array(b.n).fill(b.s/b.n));
+}
+/**
+ * GMV → per-video rate curve. Each grid point is a kernel-weighted p25/median/p75 of deals in
+ * log(GMV) space (bandwidth widens until ~15 effective deals), then forced non-decreasing in GMV
+ * so a higher GMV never gets a lower recommendation.
+ */
+function rCurve(deals){
   const pts = deals.filter(d=>d.gmv>0 && d.perVideo>0);
-  if(pts.length<5) return null;
-  const xs=pts.map(d=>Math.log(d.gmv)), ys=pts.map(d=>Math.log(d.perVideo));
-  const mx=xs.reduce((a,b)=>a+b)/xs.length, my=ys.reduce((a,b)=>a+b)/ys.length;
-  let sxy=0,sxx=0; xs.forEach((v,i)=>{ sxy+=(v-mx)*(ys[i]-my); sxx+=(v-mx)**2; });
-  const b=sxy/sxx, a=my-b*mx;
-  return Math.exp(a + b*Math.log(x));
+  if(pts.length<3) return null;
+  const lg = pts.map(d=>Math.log(d.gmv)), lp = pts.map(d=>Math.log(d.perVideo));
+  const lo = Math.min(...lg), hi = Math.max(...lg), N = 80, target = Math.min(15, pts.length*0.6);
+  const g = { lo:[], mid:[], hi:[], neff:[] };
+  for(let i=0;i<N;i++){
+    const x = lo + (hi-lo)*i/(N-1);
+    let w, W, W2;
+    for(const h of [0.35, 0.5, 0.7, 1.0, 2.0]){
+      w = lg.map(v=>Math.exp(-0.5*((v-x)/h)**2));
+      W = w.reduce((a,b)=>a+b); W2 = w.reduce((a,b)=>a+b*b);
+      if(W*W/W2 >= target) break;
+    }
+    g.lo.push(wQuantile(lp,w,.25)); g.mid.push(wQuantile(lp,w,.5)); g.hi.push(wQuantile(lp,w,.75)); g.neff.push(W*W/W2);
+  }
+  for(const k of ['lo','mid','hi']) g[k] = isotonic(g[k]);
+  const at = (arr, x)=>{
+    if(hi===lo) return arr[0];
+    const t = (Math.min(hi, Math.max(lo, Math.log(x)))-lo)/(hi-lo)*(N-1), i = Math.min(N-2, Math.floor(t));
+    return arr[i] + (arr[i+1]-arr[i])*(t-i);
+  };
+  const f = (x)=>{
+    const m = Math.exp(at(g.mid,x));
+    return { lo: Math.min(m, Math.exp(at(g.lo,x))), mid: m, hi: Math.max(m, Math.exp(at(g.hi,x))), neff: at(g.neff,x) };
+  };
+  f.min = Math.exp(lo); f.max = Math.exp(hi);
+  return f;
 }
 function renderRateTypes(){
   const types = [...new Set((RATES?.deals||[]).map(d=>d.type).filter(Boolean))];
@@ -1464,45 +1497,52 @@ function renderRateTypes(){
 function renderRates(){
   if(!RATES) return;
   const deals = rFiltered();
+  const curve = rCurve(deals);
   const x = Number(String($('#rGmv').value).replace(/[^0-9.]/g,''));
   const hasX = x>0;
 
-  // band table
+  // band table — estimates at each band's representative GMV, plus the raw min–max actually paid
   const rows = R_BANDS.slice(0,-1).map((a,i)=>{
-    const b=R_BANDS[i+1], inBand=deals.filter(d=>d.gmv>=a && d.gmv<b), s=rStats(inBand);
+    const b=R_BANDS[i+1], inBand=deals.filter(d=>d.gmv>=a && d.gmv<b);
     const label = b===Infinity ? `${kfmt(a)} 이상` : `${kfmt(a)} ~ ${kfmt(b)}`;
     const hit = hasX && x>=a && x<b;
-    if(!s.n) return `<tr class="${hit?'hit':''}"><td>${label}</td><td>0</td><td colspan="4" style="text-align:center;color:var(--muted)">데이터 없음</td></tr>`;
-    return `<tr class="${hit?'hit':''}"><td>${label}</td><td>${s.n}</td><td>${usd5(s.lo)}</td><td><b>${usd5(s.mid)}</b></td><td>${usd5(s.hi)}</td><td style="color:var(--muted)">${usd(s.min)} – ${usd(s.max)}</td></tr>`;
+    if(!inBand.length || !curve) return `<tr class="${hit?'hit':''}"><td>${label}</td><td>0</td><td colspan="4" style="text-align:center;color:var(--muted)">데이터 없음</td></tr>`;
+    const rep = a===0 ? b/2 : b===Infinity ? a*1.5 : Math.sqrt(a*b), e = curve(rep);
+    const ps = inBand.map(d=>d.perVideo);
+    return `<tr class="${hit?'hit':''}"><td>${label}</td><td>${inBand.length}</td><td>${usd5(e.lo)}</td><td><b>${usd5(e.mid)}</b></td><td>${usd5(e.hi)}</td><td style="color:var(--muted)">${usd(Math.min(...ps))} – ${usd(Math.max(...ps))}</td></tr>`;
   }).join('');
-  $('#rTable').innerHTML = `<table class="rt"><thead><tr><th class="l">GMV 구간</th><th>건수</th><th>하한 (25%)</th><th>중앙값</th><th>상한 (75%)</th><th>실제 범위</th></tr></thead><tbody>${rows}</tbody></table>`;
+  $('#rTable').innerHTML = `<table class="rt"><thead><tr><th class="l">GMV 구간</th><th>건수</th><th>하한</th><th>추천</th><th>상한</th><th>실제 범위</th></tr></thead><tbody>${rows}</tbody></table>`;
 
   if(!hasX){
-    $('#rResult').innerHTML = '<div class="rempty">GMV를 입력하면 비슷한 GMV 구간의 실제 협업 단가로 추천 단가·하한·상한을 계산해요.</div>';
+    $('#rResult').innerHTML = '<div class="rempty">GMV를 입력하면 실제 협업 단가를 바탕으로 추천 단가·하한·상한을 계산해요.</div>';
     $('#rPeersSec').style.display='none';
     return;
   }
-  if(!deals.length){
-    $('#rResult').innerHTML = '<div class="rempty">선택한 조건에 맞는 협업 데이터가 없어요. 유형 필터를 켜보세요.</div>';
+  if(!curve){
+    $('#rResult').innerHTML = '<div class="rempty">선택한 조건에 맞는 협업 데이터가 부족해요. 유형 필터를 켜보세요.</div>';
     $('#rPeersSec').style.display='none';
     return;
   }
 
-  const nb = rNeighbors(deals, x), s = rStats(nb.list), trend = rTrend(deals, x);
-  const warn = s.n<5 ? ` · <span class="rwarn">표본 ${s.n}건 — 참고용</span>` : '';
+  const e = curve(x);
+  const out = x < curve.min || x > curve.max;
+  const notes = [];
+  if(out) notes.push(`<span class="rwarn">입력 GMV가 데이터 범위(${kfmt(curve.min)} ~ ${kfmt(curve.max)}) 밖 — 가장자리 값 기준</span>`);
+  if(e.neff<8) notes.push(`<span class="rwarn">표본 적음 — 참고용</span>`);
   $('#rResult').innerHTML = `
     <div class="rcards">
-      <div class="rcard"><div class="k">하한 (25%)</div><div class="v">${usd5(s.lo)}</div></div>
-      <div class="rcard main"><div class="k">추천 개당 단가 (중앙값)</div><div class="v">${usd5(s.mid)}</div></div>
-      <div class="rcard"><div class="k">상한 (75%)</div><div class="v">${usd5(s.hi)}</div></div>
+      <div class="rcard"><div class="k">하한 (하위 25%)</div><div class="v">${usd5(e.lo)}</div></div>
+      <div class="rcard main"><div class="k">추천 개당 단가</div><div class="v">${usd5(e.mid)}</div></div>
+      <div class="rcard"><div class="k">상한 (상위 25%)</div><div class="v">${usd5(e.hi)}</div></div>
     </div>
-    <div class="rbasis">${nb.basis} 협업 <b>${s.n}건</b> 기준 · 실제 범위 ${usd(s.min)} – ${usd(s.max)}${trend?` · 전체 추세선 기준 ≈ ${usd5(trend)}`:''}${warn}</div>`;
+    <div class="rbasis">GMV가 가까운 협업일수록 크게 반영 · 유효 표본 약 <b>${Math.round(e.neff)}건</b> · GMV가 오르면 단가가 내려가지 않게 보정${notes.length?' · '+notes.join(' · '):''}</div>`;
 
+  const nb = rNeighbors(deals, x);
   const peers = [...nb.list].sort((a,b)=> Math.abs(Math.log(a.gmv/x)) - Math.abs(Math.log(b.gmv/x)));
-  $('#rPeersTitle').textContent = `비슷한 구간에서 협업한 크리에이터 (${peers.length}명)`;
+  $('#rPeersTitle').innerHTML = `비슷한 구간에서 협업한 크리에이터 (${peers.length}명 · ${esc(nb.basis)}) <span style="font-weight:400;font-size:12px;color:var(--muted)">· <span class="rlo">초록</span> = 자기 GMV 대비 저렴 · <span class="rhi">빨강</span> = 비쌈</span>`;
   $('#rPeers').innerHTML = `<table class="rt"><thead><tr><th class="l">크리에이터</th><th>GMV</th><th>개당 단가</th><th>영상 수</th><th>총액</th><th>평균조회수</th><th class="l">유형</th><th class="l">상태</th><th class="l">월</th><th class="l">담당자</th></tr></thead><tbody>${
     peers.map(d=>{
-      const cls = d.perVideo < s.lo ? 'rlo' : d.perVideo > s.hi ? 'rhi' : '';
+      const r = curve(d.gmv), cls = d.perVideo < r.lo ? 'rlo' : d.perVideo > r.hi ? 'rhi' : '';
       return `<tr><td><a href="https://www.tiktok.com/@${encodeURIComponent(d.handle)}" target="_blank" rel="noopener">@${esc(d.handle)}</a></td>
         <td>${usd(d.gmv)}</td><td class="${cls}"><b>${usd(d.perVideo)}</b></td><td>${d.videos??'—'}</td><td>${usd(d.total)}</td><td>${d.avgViews!=null?num(d.avgViews):'—'}</td>
         <td class="l">${esc(d.type)}</td><td class="l"><span class="rtag ${d.closed?'':'no'}">${esc(d.status||'—')}</span></td><td class="l">${esc(d.month)}</td><td class="l">${esc(d.manager)}</td></tr>`;
