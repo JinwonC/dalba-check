@@ -23,8 +23,8 @@
     border-radius:10px;font-size:15px;background:#fff}
   .bar input[type=text]:focus{outline:none;border-color:var(--gold);box-shadow:0 0 0 3px rgba(184,137,46,.15)}
   .bar input.meta-in{flex:0 1 200px;min-width:150px}
-  .tabs{max-width:1180px;margin:14px auto 0;padding:0 20px;display:flex;gap:8px;justify-content:center}
-  .tab{border:1px solid var(--line);background:#fff;color:var(--muted);padding:9px 16px;border-radius:999px;font-size:13.5px;cursor:pointer}
+  .tabs{max-width:1180px;margin:14px auto 0;padding:0 20px;display:flex;gap:8px;justify-content:center;flex-wrap:wrap}
+  .tab{border:1px solid var(--line);background:#fff;color:var(--muted);padding:9px 16px;border-radius:999px;font-size:13.5px;cursor:pointer;white-space:nowrap}
   .tab.on{background:var(--slate);color:#fff;border-color:var(--slate)}
   .filebtn{display:inline-flex;align-items:center;gap:6px;flex:1;max-width:280px;justify-content:center;padding:13px 16px;border:1px dashed var(--gold);border-radius:10px;font-size:14px;color:var(--gold);background:var(--gold-soft);cursor:pointer}
   .filename{font-size:13px;color:var(--muted);max-width:220px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -266,8 +266,45 @@
   .brief.editing [contenteditable]{cursor:text}
   .htoggle.on{background:var(--slate);color:#fff;border-color:var(--slate)}
   .editnote{max-width:900px;margin:0 auto 10px;padding:8px 12px;background:var(--gold-soft);border:1px solid #efe4cd;border-radius:9px;font-size:12.5px;color:#7a5a1e;text-align:center}
+  /* ── 단가표 ── */
+  .rpanel{max-width:1180px;margin:18px auto 0;padding:0 20px}
+  .rcalc{background:#fff;border:1px solid var(--line);border-radius:14px;padding:18px 20px;display:flex;flex-wrap:wrap;gap:14px 22px;align-items:center}
+  .rcalc .rin{display:flex;align-items:center;gap:8px}
+  .rcalc .rin span{font-weight:700;font-size:14px}
+  .rcalc input#rGmv{width:200px;padding:12px 14px;border:1px solid var(--line);border-radius:10px;font-size:17px;font-weight:600}
+  .rcalc input#rGmv:focus{outline:none;border-color:var(--gold);box-shadow:0 0 0 3px rgba(184,137,46,.15)}
+  .rchips{display:flex;flex-wrap:wrap;gap:6px;align-items:center;font-size:12.5px;color:var(--muted)}
+  .rchip{border:1px solid var(--line);background:#fff;color:var(--muted);padding:5px 11px;border-radius:999px;font-size:12.5px;cursor:pointer}
+  .rchip.on{background:var(--gold-soft);border-color:var(--gold);color:#7a5a17;font-weight:600}
+  .rtoggle{font-size:12.5px;color:var(--muted);display:flex;align-items:center;gap:5px;cursor:pointer}
+  .rcards{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-top:14px}
+  .rcard{background:#fff;border:1px solid var(--line);border-radius:14px;padding:16px;text-align:center}
+  .rcard .k{font-size:12.5px;color:var(--muted)}
+  .rcard .v{font-size:28px;font-weight:800;margin-top:4px;font-variant-numeric:tabular-nums}
+  .rcard.main{border-color:var(--gold);background:var(--gold-soft)}
+  .rcard.main .v{color:#7a5a17;font-size:34px}
+  .rbasis{margin-top:10px;font-size:13px;color:var(--muted);text-align:center}
+  .rwarn{color:#b45309;font-weight:600}
+  .rsec{margin-top:22px}
+  .rsec h3{font-size:15px;margin:0 0 8px}
+  .rtwrap{overflow-x:auto;background:#fff;border:1px solid var(--line);border-radius:12px}
+  table.rt{width:100%;border-collapse:collapse;font-size:13px;font-variant-numeric:tabular-nums}
+  table.rt th{background:#faf8f3;color:var(--muted);font-weight:600;text-align:right;padding:9px 10px;border-bottom:1px solid var(--line);white-space:nowrap}
+  table.rt td{padding:8px 10px;border-bottom:1px solid #f1eee7;text-align:right;white-space:nowrap}
+  table.rt th:first-child, table.rt td:first-child{text-align:left}
+  table.rt td.l, table.rt th.l{text-align:left}
+  table.rt tr:last-child td{border-bottom:0}
+  table.rt tr.hit td{background:var(--gold-soft);font-weight:600}
+  .rlo{color:#15803d}.rhi{color:#b91c1c}
+  .rtag{display:inline-block;font-size:11px;padding:1px 7px;border-radius:999px;background:#f3f4f6;color:#555}
+  .rtag.no{background:#fee2e2;color:#991b1b}
+  .rsrc{margin:14px 0 30px;font-size:12px;color:var(--muted);text-align:right}
+  .rsrc button{border:1px solid var(--line);background:#fff;border-radius:8px;padding:4px 10px;font-size:12px;cursor:pointer;margin-left:6px}
+  .rempty{padding:22px;text-align:center;color:var(--muted);background:#fff;border:1px dashed var(--line);border-radius:12px;margin-top:14px}
+  @media (max-width:640px){ .rcards{grid-template-columns:1fr} .rcalc input#rGmv{width:100%} .rcalc .rin{width:100%} }
+
   @media print {
-    header.top, .tabs, .bar, .hint, #status, #batchbar, #history, #layout, #guidePanel, .gbar-actions, .editnote, .foot { display:none !important; }
+    header.top, .tabs, .bar, .hint, #status, #batchbar, #history, #layout, #guidePanel, #ratesPanel, .gbar-actions, .editnote, .foot { display:none !important; }
     body{background:#fff}
     .gresult{margin:0;padding:0;max-width:none}
     .brief{border:0;border-radius:0;max-width:none;margin:0}
@@ -286,6 +323,7 @@
     <button class="tab on" data-mode="link">🔗 링크 (틱톡·인스타)</button>
     <button class="tab" data-mode="upload">📁 파일 업로드</button>
     <button class="tab" data-mode="guide">📋 가이드 생성기</button>
+    <button class="tab" data-mode="rates">💰 단가표</button>
   </div>
   <div class="bar" id="bar">
     <input id="url" type="text" placeholder="틱톡·인스타 링크 (여러 개는 쉼표/공백/줄바꿈으로 구분, 최대 5개)" />
@@ -318,7 +356,7 @@
 
       <div class="gsec">
         <h3>2 · 바디 레퍼런스 <span class="gmax">우리 영상 1개</span></h3>
-        <p class="gdesc"><b>잘 된 우리 영상 1개.</b> 이 영상의 <b>구조·소구순서·문장을 그대로 복제</b>하고 훅만 위 스택으로 교체합니다. (제품·성분 파트엔 감정 필터 적용)</p>
+        <p class="gdesc"><b>잘 된 우리 영상 1개.</b> 이 영상의 <b>문장·소구·클레임을 재료</b>로, 검증된 골격(Desire → Personal → Ingredient → Result → Social proof → CTA)에 맞춰 바디를 짜요. (성분 파트엔 감정 필터 적용)</p>
         <div class="gadd">
           <input id="gBodyUrl" type="text" placeholder="우리 영상 링크" />
           <button class="gaddbtn" id="gBodyAdd">추가</button>
@@ -362,6 +400,18 @@
     </div>
   </div>
 
+  <div class="rpanel" id="ratesPanel" style="display:none">
+    <div class="rcalc">
+      <div class="rin"><span>크리에이터 GMV $</span><input id="rGmv" type="text" inputmode="numeric" placeholder="예: 30000" autocomplete="off" /></div>
+      <div class="rchips" id="rTypes"></div>
+      <label class="rtoggle"><input type="checkbox" id="rAll" /> 드랍·미성사 건도 포함</label>
+    </div>
+    <div id="rResult"><div class="rempty">GMV를 입력하면 비슷한 GMV 구간의 실제 협업 단가로 추천 단가·하한·상한을 계산해요.</div></div>
+    <div class="rsec" id="rPeersSec" style="display:none"><h3 id="rPeersTitle">비슷한 구간에서 협업한 크리에이터</h3><div class="rtwrap" id="rPeers"></div></div>
+    <div class="rsec"><h3>GMV 구간별 개당 단가표</h3><div class="rtwrap" id="rTable"><div class="rempty" style="border:0;margin:0">불러오는 중…</div></div></div>
+    <div class="rsrc" id="rSrc"></div>
+  </div>
+
   <div class="gresult" id="guideResult"></div>
 
 
@@ -392,13 +442,16 @@ let MODE = 'link';
 document.querySelectorAll('.tab').forEach(t=> t.addEventListener('click', ()=>{
   MODE = t.dataset.mode;
   document.querySelectorAll('.tab').forEach(x=>x.classList.toggle('on', x===t));
-  const guide = MODE==='guide';
-  // analyzer chrome vs guide panel
-  $('#bar').style.display = guide ? 'none' : '';
-  $('#analyzerHint').style.display = guide ? 'none' : '';
+  const guide = MODE==='guide', rates = MODE==='rates', analyzer = !guide && !rates;
+  // analyzer chrome vs guide panel vs rate card
+  $('#bar').style.display = analyzer ? '' : 'none';
+  $('#analyzerHint').style.display = analyzer ? '' : 'none';
   $('#guidePanel').style.display = guide ? '' : 'none';
-  if(guide){ $('#layout').style.display='none'; $('#history').style.display='none'; }
+  $('#ratesPanel').style.display = rates ? '' : 'none';
+  $('#guideResult').style.display = rates ? 'none' : '';
+  if(!analyzer){ $('#layout').style.display='none'; $('#history').style.display='none'; }
   else { $('#history').style.display=''; $('#guideResult').innerHTML=''; }
+  if(rates) openRates();
   const up = MODE==='upload';
   $('#url').style.display = up ? 'none' : '';
   $('#fileLabel').style.display = up ? '' : 'none';
@@ -1360,6 +1413,122 @@ function renderBrief(g, driveUrl){
   if(driveUrl){ const el=$('#gDriveSlot'); if(el) el.innerHTML=`<a class="copy" href="${esc(driveUrl)}" target="_blank" rel="noopener">📄 Drive에서 열기</a>`; }
   window.scrollTo({ top: $('#guideResult').offsetTop-12, behavior:'smooth' });
 }
+
+/* ── 단가표 (GMV → 개당 단가) ── */
+let RATES = null, RATES_LOADING = null;
+const R_TYPES_OFF = new Set(['AF Coaching']); // fixed $20/video program — skews the low band
+const R_BANDS = [0, 10000, 25000, 50000, 100000, 200000, 500000, Infinity];
+const usd = (v)=> v==null ? '—' : '$' + Math.round(v).toLocaleString();
+const usd5 = (v)=> v==null ? '—' : '$' + (Math.round(v/5)*5).toLocaleString();
+const kfmt = (v)=> v>=1000 ? '$' + (v/1000).toLocaleString(undefined,{maximumFractionDigits:1}) + 'K' : '$' + Math.round(v);
+function pctl(sorted, p){
+  if(!sorted.length) return null;
+  const i=(sorted.length-1)*p, lo=Math.floor(i), hi=Math.ceil(i);
+  return sorted[lo] + (sorted[hi]-sorted[lo])*(i-lo);
+}
+function rStats(deals){
+  const ps = deals.map(d=>d.perVideo).sort((a,b)=>a-b);
+  return { n: ps.length, lo: pctl(ps,.25), mid: pctl(ps,.5), hi: pctl(ps,.75), min: ps[0], max: ps[ps.length-1] };
+}
+function rFiltered(){
+  const all = $('#rAll').checked;
+  return (RATES?.deals||[]).filter(d=> !R_TYPES_OFF.has(d.type) && (all || d.closed));
+}
+/** Deals with GMV within ×/÷ factor of x; widen until ≥8, else fall back to the 8 nearest. */
+function rNeighbors(deals, x){
+  for(const f of [1.5, 2, 3]){
+    const n = deals.filter(d=> d.gmv>=x/f && d.gmv<=x*f);
+    if(n.length>=8) return { list:n, basis:`GMV ${kfmt(x/f)} ~ ${kfmt(x*f)}` };
+  }
+  const near = [...deals].sort((a,b)=> Math.abs(Math.log(a.gmv/x)) - Math.abs(Math.log(b.gmv/x))).slice(0,8);
+  return { list: near, basis: `GMV가 가장 가까운 ${near.length}건` };
+}
+/** Log-log trend across all filtered deals: perVideo ≈ a · GMV^b. */
+function rTrend(deals, x){
+  const pts = deals.filter(d=>d.gmv>0 && d.perVideo>0);
+  if(pts.length<5) return null;
+  const xs=pts.map(d=>Math.log(d.gmv)), ys=pts.map(d=>Math.log(d.perVideo));
+  const mx=xs.reduce((a,b)=>a+b)/xs.length, my=ys.reduce((a,b)=>a+b)/ys.length;
+  let sxy=0,sxx=0; xs.forEach((v,i)=>{ sxy+=(v-mx)*(ys[i]-my); sxx+=(v-mx)**2; });
+  const b=sxy/sxx, a=my-b*mx;
+  return Math.exp(a + b*Math.log(x));
+}
+function renderRateTypes(){
+  const types = [...new Set((RATES?.deals||[]).map(d=>d.type).filter(Boolean))];
+  $('#rTypes').innerHTML = '<span>유형</span>' + types.map(t=>`<button class="rchip ${R_TYPES_OFF.has(t)?'':'on'}" data-t="${esc(t)}">${esc(t)}</button>`).join('');
+  $('#rTypes').querySelectorAll('.rchip').forEach(b=> b.addEventListener('click', ()=>{
+    const t=b.dataset.t; R_TYPES_OFF.has(t) ? R_TYPES_OFF.delete(t) : R_TYPES_OFF.add(t);
+    b.classList.toggle('on', !R_TYPES_OFF.has(t)); renderRates();
+  }));
+}
+function renderRates(){
+  if(!RATES) return;
+  const deals = rFiltered();
+  const x = Number(String($('#rGmv').value).replace(/[^0-9.]/g,''));
+  const hasX = x>0;
+
+  // band table
+  const rows = R_BANDS.slice(0,-1).map((a,i)=>{
+    const b=R_BANDS[i+1], inBand=deals.filter(d=>d.gmv>=a && d.gmv<b), s=rStats(inBand);
+    const label = b===Infinity ? `${kfmt(a)} 이상` : `${kfmt(a)} ~ ${kfmt(b)}`;
+    const hit = hasX && x>=a && x<b;
+    if(!s.n) return `<tr class="${hit?'hit':''}"><td>${label}</td><td>0</td><td colspan="4" style="text-align:center;color:var(--muted)">데이터 없음</td></tr>`;
+    return `<tr class="${hit?'hit':''}"><td>${label}</td><td>${s.n}</td><td>${usd5(s.lo)}</td><td><b>${usd5(s.mid)}</b></td><td>${usd5(s.hi)}</td><td style="color:var(--muted)">${usd(s.min)} – ${usd(s.max)}</td></tr>`;
+  }).join('');
+  $('#rTable').innerHTML = `<table class="rt"><thead><tr><th class="l">GMV 구간</th><th>건수</th><th>하한 (25%)</th><th>중앙값</th><th>상한 (75%)</th><th>실제 범위</th></tr></thead><tbody>${rows}</tbody></table>`;
+
+  if(!hasX){
+    $('#rResult').innerHTML = '<div class="rempty">GMV를 입력하면 비슷한 GMV 구간의 실제 협업 단가로 추천 단가·하한·상한을 계산해요.</div>';
+    $('#rPeersSec').style.display='none';
+    return;
+  }
+  if(!deals.length){
+    $('#rResult').innerHTML = '<div class="rempty">선택한 조건에 맞는 협업 데이터가 없어요. 유형 필터를 켜보세요.</div>';
+    $('#rPeersSec').style.display='none';
+    return;
+  }
+
+  const nb = rNeighbors(deals, x), s = rStats(nb.list), trend = rTrend(deals, x);
+  const warn = s.n<5 ? ` · <span class="rwarn">표본 ${s.n}건 — 참고용</span>` : '';
+  $('#rResult').innerHTML = `
+    <div class="rcards">
+      <div class="rcard"><div class="k">하한 (25%)</div><div class="v">${usd5(s.lo)}</div></div>
+      <div class="rcard main"><div class="k">추천 개당 단가 (중앙값)</div><div class="v">${usd5(s.mid)}</div></div>
+      <div class="rcard"><div class="k">상한 (75%)</div><div class="v">${usd5(s.hi)}</div></div>
+    </div>
+    <div class="rbasis">${nb.basis} 협업 <b>${s.n}건</b> 기준 · 실제 범위 ${usd(s.min)} – ${usd(s.max)}${trend?` · 전체 추세선 기준 ≈ ${usd5(trend)}`:''}${warn}</div>`;
+
+  const peers = [...nb.list].sort((a,b)=> Math.abs(Math.log(a.gmv/x)) - Math.abs(Math.log(b.gmv/x)));
+  $('#rPeersTitle').textContent = `비슷한 구간에서 협업한 크리에이터 (${peers.length}명)`;
+  $('#rPeers').innerHTML = `<table class="rt"><thead><tr><th class="l">크리에이터</th><th>GMV</th><th>개당 단가</th><th>영상 수</th><th>총액</th><th>평균조회수</th><th class="l">유형</th><th class="l">상태</th><th class="l">월</th><th class="l">담당자</th></tr></thead><tbody>${
+    peers.map(d=>{
+      const cls = d.perVideo < s.lo ? 'rlo' : d.perVideo > s.hi ? 'rhi' : '';
+      return `<tr><td><a href="https://www.tiktok.com/@${encodeURIComponent(d.handle)}" target="_blank" rel="noopener">@${esc(d.handle)}</a></td>
+        <td>${usd(d.gmv)}</td><td class="${cls}"><b>${usd(d.perVideo)}</b></td><td>${d.videos??'—'}</td><td>${usd(d.total)}</td><td>${d.avgViews!=null?num(d.avgViews):'—'}</td>
+        <td class="l">${esc(d.type)}</td><td class="l"><span class="rtag ${d.closed?'':'no'}">${esc(d.status||'—')}</span></td><td class="l">${esc(d.month)}</td><td class="l">${esc(d.manager)}</td></tr>`;
+    }).join('')
+  }</tbody></table>`;
+  $('#rPeersSec').style.display='';
+}
+async function openRates(refresh=false){
+  if(RATES && !refresh){ renderRates(); return; }
+  if(RATES_LOADING) return RATES_LOADING;
+  $('#rSrc').textContent = '시트에서 불러오는 중…';
+  RATES_LOADING = fetch('/api/rates' + (refresh?'?refresh=1':'')).then(r=>r.json()).then(d=>{
+    if(d.error) throw new Error(d.error);
+    RATES = d; renderRateTypes(); renderRates();
+    const t = new Date(d.fetchedAt).toLocaleString();
+    $('#rSrc').innerHTML = `출처: 구글시트 「${esc(d.tab)}」 탭 · GMV·개당 단가 있는 ${d.deals.length}건 · ${esc(t)} 기준 <button id="rRefresh">↻ 새로고침</button>`;
+    $('#rRefresh').addEventListener('click', ()=> openRates(true));
+  }).catch(e=>{
+    $('#rTable').innerHTML = `<div class="rempty" style="border:0;margin:0">불러오기 실패: ${esc(e.message)}</div>`;
+    $('#rSrc').innerHTML = '<button id="rRefresh">↻ 다시 시도</button>';
+    $('#rRefresh').addEventListener('click', ()=> openRates(true));
+  }).finally(()=>{ RATES_LOADING = null; });
+  return RATES_LOADING;
+}
+$('#rGmv').addEventListener('input', renderRates);
+$('#rAll').addEventListener('change', renderRates);
 
 wireGuide();
 loadHistory();

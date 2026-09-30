@@ -8,6 +8,7 @@ import { pushToDrive, driveEnabled } from './lib/drive.js';
 import { guideToPlainText } from './lib/guideText.js';
 import { saveAnalysis, listAnalyses, getAnalysis, deleteAnalysis, migrateLegacyToUpstash } from './lib/store.js';
 import uploadHandler from './api/upload.js';
+import { loadRates } from './lib/rates.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const app = express();
@@ -56,6 +57,11 @@ app.post('/api/save', async (req, res) => {
 
 app.get('/api/history', async (_req, res) => {
   try { res.json({ items: await listAnalyses() }); }
+  catch (err) { send(res, err); }
+});
+
+app.get('/api/rates', async (req, res) => {
+  try { res.json(await loadRates({ refresh: req.query.refresh === '1' })); }
   catch (err) { send(res, err); }
 });
 
