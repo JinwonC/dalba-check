@@ -186,18 +186,10 @@ def get_sheet():
     return sheet
 
 
-def save(rows: list[list]):
-    if not rows:
-        print("  저장할 데이터 없음")
-        return
-    sheet = get_sheet()
-    if not sheet.row_values(1):
-        sheet.append_row(HEADERS)
-        sheet.freeze(rows=1)
+def _append_with_retry(sheet, rows):
     for attempt in range(1, 9):
         try:
             sheet.append_rows(rows, value_input_option="USER_ENTERED")
-            print(f"  ✅ {len(rows)}행 저장 완료")
             return
         except Exception as e:
             if attempt == 8:
@@ -205,6 +197,39 @@ def save(rows: list[list]):
             wait = min(3 * attempt, 30)
             print(f"  시트 쓰기 실패 (시도 {attempt}/8), {wait}초 후 재시도... ({e})")
             time.sleep(wait)
+
+
+def save(rows: list[list]):
+    """트레일링 윈도우(최근 N일) 수집분 중, 시트에 '그 날짜'가 아직 없는 날짜의 행만 하단에 추가.
+    이미 적재된 날짜는 건너뛰어 중복을 막고, API가 0행 준 날은 기존 데이터를 지우지 않는다.
+    전날 0행이던 날에 데이터가 생기면 다음 실행에서 자동으로 메워진다(자동복구). 전체 재작성 없음."""
+    sheet = get_sheet()
+    if not sheet.row_values(1):
+        sheet.append_row(HEADERS)
+        sheet.freeze(rows=1)
+    if not rows:
+        print("  수집된 데이터 없음 (API 0행) — 기존 데이터 유지, 추가 없음")
+        return
+    existing = sheet.col_values(1)[1:]  # A열(날짜), 헤더 제외
+    existing_dates = {str(v).strip()[:10] for v in existing if str(v).strip()}
+    by_date: dict[str, list] = {}
+    for r in rows:
+        d = str(r[0]).strip()[:10]
+        by_date.setdefault(d, []).append(r)
+    to_add, skipped = [], []
+    for d in sorted(by_date):
+        if d in existing_dates:
+            skipped.append(d)
+        else:
+            to_add.extend(by_date[d])
+    if skipped:
+        print(f"  이미 적재된 날짜 건너뜀(중복 방지): {skipped}")
+    if not to_add:
+        print("  추가할 신규 날짜 없음 (윈도우 내 모든 날짜가 이미 적재됨)")
+        return
+    added = sorted({str(r[0]).strip()[:10] for r in to_add})
+    _append_with_retry(sheet, to_add)
+    print(f"  ✅ 신규 날짜 {added} → {len(to_add)}행 추가 완료")
 
 
 # ─────────────────────────────────────────
