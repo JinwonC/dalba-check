@@ -1,0 +1,55 @@
+name: Ads Backfill (GMV MAX)
+
+# GMV MAX 광고(tiktok_ads.py)만 단독 실행 — 특정 날짜 수동 백필용
+# 데일리가 LA 새벽에 돌 때 전날 광고 데이터가 아직 TikTok에 안 올라와
+# 0행으로 비는 날을 메우기 위한 워크플로우. 광고 시트만 건드린다.
+on:
+  workflow_dispatch:
+    inputs:
+      report_date:
+        description: '적재할 날짜 (YYYY-MM-DD). 비워두면 LA 기준 어제'
+        required: false
+        default: ''
+
+jobs:
+  ads:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+        with:
+          # 파이썬 스크립트는 이 브랜치에만 있으므로 항상 여기서 체크아웃
+          ref: claude/bypass-sheets-timeout-8nw21
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: pip install requests gspread google-auth
+
+      - name: Write secret files
+        run: |
+          echo '${{ secrets.SERVICE_ACCOUNT_JSON }}' > service_account.json
+          echo '${{ secrets.ADS_TOKENS_JSON }}' > ads_tokens.json
+
+      - name: Compute date (LA time)
+        id: date
+        run: |
+          if [ -n "${{ github.event.inputs.report_date }}" ]; then
+            D="${{ github.event.inputs.report_date }}"
+          else
+            D=$(TZ='America/Los_Angeles' date -d 'yesterday' '+%Y-%m-%d')
+          fi
+          echo "d=$D" >> $GITHUB_OUTPUT
+
+      - name: Run tiktok_ads.py
+        run: |
+          for i in 1 2 3; do
+            python tiktok_ads.py "${{ steps.date.outputs.d }} ~ ${{ steps.date.outputs.d }}" && exit 0
+            echo "::warning::tiktok_ads.py 실패 (${i}/3회차), 30초 후 재시도..."
+            sleep 30
+          done
+          echo "::error::tiktok_ads.py 3회 모두 실패"
+          exit 1
