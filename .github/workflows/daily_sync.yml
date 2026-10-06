@@ -72,22 +72,30 @@ jobs:
           echo "::error::SKU별_성과.py 3회 모두 실패"
           exit 1
 
-      - name: Run tiktok_ads.py (어제 날짜)
+      # 광고도 LA 새벽엔 전날 데이터가 아직 안 올라와 0행이 되는 날이 있으므로
+      # '최근 4일'을 재조회 → 스크립트가 이미 있는 날짜는 건너뛰고 빈 날짜만 추가 (자동복구)
+      - name: Run tiktok_ads.py (최근 4일 윈도우)
         if: ${{ !cancelled() }}
         run: |
+          E="${{ steps.date.outputs.yesterday }}"
+          S=$(date -d "$E -3 days" '+%Y-%m-%d')
+          echo "::notice::tiktok_ads window $S ~ $E"
           for i in 1 2 3; do
-            python tiktok_ads.py "${{ steps.date.outputs.yesterday }} ~ ${{ steps.date.outputs.yesterday }}" && exit 0
+            python tiktok_ads.py "$S ~ $E" && exit 0
             echo "::warning::tiktok_ads.py 실패 (${i}/3회차), 30초 후 재시도..."
             sleep 30
           done
           echo "::error::tiktok_ads.py 3회 모두 실패"
           exit 1
 
-      - name: Run tiktok_spark_ads.py (스파크애즈, 어제 날짜)
+      - name: Run tiktok_spark_ads.py (스파크애즈, 최근 4일 윈도우)
         if: ${{ !cancelled() }}
         run: |
+          E="${{ steps.date.outputs.yesterday }}"
+          S=$(date -d "$E -3 days" '+%Y-%m-%d')
+          echo "::notice::tiktok_spark_ads window $S ~ $E"
           for i in 1 2 3; do
-            python tiktok_spark_ads.py "${{ steps.date.outputs.yesterday }} ~ ${{ steps.date.outputs.yesterday }}" && exit 0
+            python tiktok_spark_ads.py "$S ~ $E" && exit 0
             echo "::warning::tiktok_spark_ads.py 실패 (${i}/3회차), 30초 후 재시도..."
             sleep 30
           done
