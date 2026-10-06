@@ -2,7 +2,7 @@
 
 /analytics/202605/shop_videos/performance 를 호출해 응답 필드를
 동적으로 평탄화하여 '영상성과_신API테스트' 탭에 그대로 덤프한다.
-프로덕션 '영상성과데이터' 탭(202409)은 건드리지 않는다.
+프로덕션 '전체 영상성과데이터' 탭(202409)은 건드리지 않는다.
 신규 필드: creator(open_id/user_name/nick_name/author_type), duration,
 hash_tags, gpm, avg_customers, items_sold, latest_available_date 등
 """

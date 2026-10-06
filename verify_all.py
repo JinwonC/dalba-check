@@ -7,7 +7,7 @@ from google.oauth2.service_account import Credentials
 TARGETS = [
     # (스프레드시트ID, 탭명, 날짜열 헤더 후보, 키열 헤더 후보)
     ("1_qkd6LZ1wFoihhJSuYdabQ4iRbx-jsFYVxeGIoEb-_g", "영상성과_신API테스트", "video_post_time", "id"),
-    ("1_qkd6LZ1wFoihhJSuYdabQ4iRbx-jsFYVxeGIoEb-_g", "영상성과데이터", "포스팅일(LA)", "Video ID"),
+    ("1_qkd6LZ1wFoihhJSuYdabQ4iRbx-jsFYVxeGIoEb-_g", "전체 영상성과데이터", "포스팅일(LA)", "Video ID"),
     ("15dP91bH_skc7ZzcJ3ehH9H4IKCzSxcfuOcREr3OaL0o", "라이브성과", "시작일시(LA)", "id"),
     ("15dP91bH_skc7ZzcJ3ehH9H4IKCzSxcfuOcREr3OaL0o", "(중요, 자동) SKU Order", "날짜", None),
     ("1AhVPPUq6Npri72uhtFcOUVMBl1jA7nf2P0qDCDRRKfA", "광고성과", "날짜", None),

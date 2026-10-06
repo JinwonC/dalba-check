@@ -26,7 +26,7 @@ VIDEO_REFRESH_TOKEN = "TTP_77fQXQAAAACRYHgjQ_4vEa-Xhe5ikMt0yvs0Zs2i5flXWHMzwGfly
 VIDEO_SHOP_CIPHER = "TTP_uE19hAAAAADx5Flb4Y_fjmWFiQfOEyTT"
 VIDEO_CURRENCY = "USD"
 VIDEO_ACCOUNT_TYPE = "ALL"
-VIDEO_SHEET_NAME = "영상성과데이터"
+VIDEO_SHEET_NAME = "전체 영상성과데이터"
 
 # Google Sheets 스프레드시트 ID (URL에서 복사)
 # 예: https://docs.google.com/spreadsheets/d/xxxxxx/edit → "xxxxxx"
