@@ -1,0 +1,56 @@
+name: Video Refresh Weekly (전체 영상성과데이터 165일)
+
+# 데일리(tiktok_to_sheets 최근 60일)로는 포스팅 60일이 지난 영상의
+# G(SKU Orders)/I(Views)/E(GMV)가 더 이상 갱신되지 않는다.
+# API 수치는 '조회 기간 내 성과'라서, 포스팅일이 조회 시작일 이후인 영상만
+# 갱신해야 누적값이 정확하다(sync_by_date_range가 포스팅일로 필터링).
+# 202409 API는 약 180일 이전 조회를 거부 → 안전 마진을 둔 165일 윈도우.
+# 그보다 오래된 영상은 API가 과거 데이터를 주지 않아 갱신 불가(기존 값 유지).
+on:
+  schedule:
+    - cron: '0 13 * * 6'   # 매주 토요일 13:00 UTC (데일리 08:10~09:10 UTC와 겹치지 않음)
+  workflow_dispatch:
+    inputs:
+      window_days:
+        description: '조회 윈도우(일). 기본 165, API 한계 약 180'
+        required: false
+        default: '165'
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+        with:
+          # 파이썬 스크립트는 이 브랜치에만 있으므로 항상 여기서 체크아웃
+          ref: claude/bypass-sheets-timeout-8nw21
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: pip install requests gspread google-auth
+
+      - name: Write secret files
+        run: |
+          echo '${{ secrets.SERVICE_ACCOUNT_JSON }}' > service_account.json
+          echo '${{ secrets.TOKENS_JSON }}' > tokens.json
+
+      - name: Run tiktok_to_sheets.py (최근 N일 포스팅 영상 누적 갱신)
+        run: |
+          N="${{ github.event.inputs.window_days }}"
+          [ -z "$N" ] && N=165
+          E=$(TZ='America/Los_Angeles' date '+%Y-%m-%d')
+          S=$(date -d "$E -$N days" '+%Y-%m-%d')
+          echo "::notice::video refresh window $S ~ $E (${N}일)"
+          for i in 1 2 3; do
+            python tiktok_to_sheets.py "$S ~ $E" && exit 0
+            echo "::warning::tiktok_to_sheets.py 실패 (${i}/3회차), 60초 후 재시도..."
+            sleep 60
+          done
+          echo "::error::tiktok_to_sheets.py 3회 모두 실패"
+          exit 1
