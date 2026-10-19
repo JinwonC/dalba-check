@@ -1,0 +1,44 @@
+name: DE CRUVA Sync (전체영상/퍼스트/멀티밤)
+
+# DE 제품별 콘텐츠 트랙킹 시트를 CRUVA REST API로 매일 갱신 (UPSERT)
+#  - 기존 행은 숫자 열만 제자리 갱신, 수기 열 보존 / 새 영상은 맨 아래 추가
+#  - 필요 secret: CRUVA_API_KEY (CRUVA Dashboard → API → API Keys & Access 에서 발급)
+on:
+  schedule:
+    - cron: '30 9 * * *'   # 매일 09:30 UTC (한국 18:30) — 데일리 싱크(08:10~09:10 UTC) 이후
+  workflow_dispatch:
+    inputs:
+      start_date:
+        description: '발행일 시작 (YYYY-MM-DD)'
+        required: false
+        default: '2026-08-01'
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+        with:
+          # 파이썬 스크립트는 이 브랜치에만 있으므로 항상 여기서 체크아웃
+          ref: claude/bypass-sheets-timeout-8nw21
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: pip install requests gspread google-auth
+
+      - name: Write secret files
+        run: echo '${{ secrets.SERVICE_ACCOUNT_JSON }}' > service_account.json
+
+      - name: Run de_cruva_sync.py
+        env:
+          CRUVA_API_KEY: ${{ secrets.CRUVA_API_KEY }}
+        run: |
+          S="${{ github.event.inputs.start_date }}"
+          [ -z "$S" ] && S=2026-08-01
+          python de_cruva_sync.py "$S"
