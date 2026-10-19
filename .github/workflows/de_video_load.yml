@@ -1,6 +1,8 @@
 name: DE Video Load (전체영상)
 
 # DE 제품별 콘텐츠 트랙킹 > 전체영상 탭에 data/ 의 월별 CSV를 적재 (수동 실행)
+#  - full    : A~H 비우고 전체 다시 쓰기
+#  - add-pid : B열에 PID 열을 끼워 넣고(기존 열 한 칸씩 이동) Video ID로 매칭해 채우기
 on:
   workflow_dispatch:
     inputs:
@@ -8,6 +10,10 @@ on:
         description: '적재할 CSV 경로'
         required: false
         default: 'data/de_videos_2026-08.csv'
+      mode:
+        description: 'full 또는 add-pid'
+        required: false
+        default: 'full'
 
 jobs:
   load:
@@ -31,4 +37,4 @@ jobs:
         run: echo '${{ secrets.SERVICE_ACCOUNT_JSON }}' > service_account.json
 
       - name: Run de_video_load.py
-        run: python de_video_load.py "${{ github.event.inputs.csv_path }}"
+        run: python de_video_load.py "${{ github.event.inputs.csv_path }}" "${{ github.event.inputs.mode }}"
