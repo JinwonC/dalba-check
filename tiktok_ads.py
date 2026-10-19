@@ -26,13 +26,13 @@ GMV_REPORT_URL = f"{BASE}/gmv_max/report/get/"
 ADGROUP_URL    = f"{BASE}/adgroup/get/"
 
 # ── 캠페인 요약 ──
-CAMP_SHEET   = "광고성과"
+CAMP_SHEET   = "캠페인 광고성과"   # (구 '광고성과'에서 리네임)
 CAMP_DIMS    = ["stat_time_day", "campaign_id"]
 CAMP_METRICS = ["cost", "orders", "gross_revenue", "roi"]
 CAMP_HEADERS = ["날짜", "캠페인ID", "지출금액", "주문수", "총매출(GMV)", "ROI"]
 
 # ── 소재 상세 ──
-ITEM_SHEET   = "광고소재성과"
+ITEM_SHEET   = "소재별 광고성과"   # (구 '광고소재성과'에서 리네임)
 ITEM_DIMS    = ["stat_time_day", "item_id"]
 ITEM_METRICS = [
     "creative_delivery_status",
@@ -50,6 +50,16 @@ ITEM_HEADERS = [
     "광고클릭률", "광고전환율",
     "2초시청률", "6초시청률", "25%시청률", "50%시청률", "75%시청률", "100%시청률",
 ]
+
+
+_DATE_RE = re.compile(r"(\d{4})\D+(\d{1,2})\D+(\d{1,2})")
+
+
+def _norm_date(v) -> str:
+    """시트 날짜 표시 형식이 달라도 같은 날짜로 비교되게 'YYYY-MM-DD'로 정규화.
+    예) '2026-10-14', '2026. 10. 14', '2026/10/14' → '2026-10-14'"""
+    m = _DATE_RE.search(str(v))
+    return f"{m.group(1)}-{int(m.group(2)):02d}-{int(m.group(3)):02d}" if m else str(v).strip()[:10]
 
 
 # ─────────────────────────────────────────
@@ -238,14 +248,13 @@ def fetch_all_item_rows(token, start_date, end_date) -> list[list]:
 # Google Sheets
 # ─────────────────────────────────────────
 def get_or_create_sheet(spreadsheet, name, headers):
+    """탭이 없으면 빈 탭을 새로 만들지 않고 에러로 멈춘다.
+    (탭 이름이 바뀌었을 때 빈 탭이 자동 생성되어 데이터가 조용히 갈라지는 사고 방지)"""
     try:
-        sheet = spreadsheet.worksheet(name)
+        return spreadsheet.worksheet(name)
     except gspread.WorksheetNotFound:
-        sheet = spreadsheet.add_worksheet(title=name, rows="10000", cols=str(len(headers)))
-        sheet.append_row(headers)
-        sheet.freeze(rows=1)
-        print(f"  시트 '{name}' 새로 생성됨")
-    return sheet
+        print(f"  ❌ '{name}' 탭을 찾을 수 없음 — 탭 이름이 바뀌었으면 스크립트의 탭 이름도 맞춰야 함")
+        raise
 
 
 def _append_with_retry(sheet, rows):
@@ -274,10 +283,10 @@ def save_missing_dates(sheet, rows, headers):
         print("  수집된 데이터 없음 (API 0행) — 기존 데이터 유지, 추가 없음")
         return
     existing = sheet.col_values(1)[1:]  # A열(날짜), 헤더 제외
-    existing_dates = {str(v).strip()[:10] for v in existing if str(v).strip()}
+    existing_dates = {_norm_date(v) for v in existing if str(v).strip()}
     by_date: dict[str, list] = {}
     for r in rows:
-        d = str(r[0]).strip()[:10]
+        d = _norm_date(r[0])
         by_date.setdefault(d, []).append(r)
     to_add, skipped = [], []
     for d in sorted(by_date):
@@ -290,7 +299,7 @@ def save_missing_dates(sheet, rows, headers):
     if not to_add:
         print("  추가할 신규 날짜 없음 (윈도우 내 모든 날짜가 이미 적재됨)")
         return
-    added = sorted({str(r[0]).strip()[:10] for r in to_add})
+    added = sorted({_norm_date(r[0]) for r in to_add})
     _append_with_retry(sheet, to_add)
     print(f"  ✅ 신규 날짜 {added} → {len(to_add)}행 추가 완료")
 

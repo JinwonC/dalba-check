@@ -131,14 +131,11 @@ def get_sheet():
     spreadsheet = client.open_by_key(SPREADSHEET_ID)
 
     try:
-        sheet = spreadsheet.worksheet(VIDEO_SHEET_NAME)
+        return spreadsheet.worksheet(VIDEO_SHEET_NAME)
     except gspread.WorksheetNotFound:
-        sheet = spreadsheet.add_worksheet(title=VIDEO_SHEET_NAME, rows="1000", cols=str(len(HEADERS)))
-        sheet.freeze(rows=1)
-        sheet.append_row(HEADERS)
-        print(f"  시트 '{VIDEO_SHEET_NAME}' 새로 생성됨")
-
-    return sheet
+        # 빈 탭 자동 생성 금지 — 탭 이름 변경 시 데이터가 조용히 갈라지는 사고 방지
+        print(f"  ❌ '{VIDEO_SHEET_NAME}' 탭을 찾을 수 없음 — 탭 이름이 바뀌었으면 스크립트도 맞춰야 함")
+        raise
 
 
 def _write_with_retry(fn, desc: str, max_attempts: int = 8):

@@ -165,6 +165,16 @@ def fetch_all(token: str, start_date: str, end_date: str) -> list[list]:
     return all_rows
 
 
+_DATE_RE = re.compile(r"(\d{4})\D+(\d{1,2})\D+(\d{1,2})")
+
+
+def _norm_date(v) -> str:
+    """시트 날짜 표시 형식이 달라도 같은 날짜로 비교되게 'YYYY-MM-DD'로 정규화.
+    예) '2026-10-14', '2026. 10. 14', '2026/10/14' → '2026-10-14'"""
+    m = _DATE_RE.search(str(v))
+    return f"{m.group(1)}-{int(m.group(2)):02d}-{int(m.group(3)):02d}" if m else str(v).strip()[:10]
+
+
 # ─────────────────────────────────────────
 # Google Sheets
 # ─────────────────────────────────────────
@@ -177,13 +187,11 @@ def get_sheet():
     client = gspread.authorize(creds)
     spreadsheet = client.open_by_key(SPREADSHEET_ID)
     try:
-        sheet = spreadsheet.worksheet(SHEET_NAME)
+        return spreadsheet.worksheet(SHEET_NAME)
     except gspread.WorksheetNotFound:
-        sheet = spreadsheet.add_worksheet(title=SHEET_NAME, rows="1000", cols=str(len(HEADERS)))
-        sheet.append_row(HEADERS)
-        sheet.freeze(rows=1)
-        print(f"  시트 '{SHEET_NAME}' 새로 생성됨")
-    return sheet
+        # 빈 탭 자동 생성 금지 — 탭 이름 변경 시 데이터가 조용히 갈라지는 사고 방지
+        print(f"  ❌ '{SHEET_NAME}' 탭을 찾을 수 없음 — 탭 이름이 바뀌었으면 스크립트도 맞춰야 함")
+        raise
 
 
 def _append_with_retry(sheet, rows):
@@ -211,10 +219,10 @@ def save(rows: list[list]):
         print("  수집된 데이터 없음 (API 0행) — 기존 데이터 유지, 추가 없음")
         return
     existing = sheet.col_values(1)[1:]  # A열(날짜), 헤더 제외
-    existing_dates = {str(v).strip()[:10] for v in existing if str(v).strip()}
+    existing_dates = {_norm_date(v) for v in existing if str(v).strip()}
     by_date: dict[str, list] = {}
     for r in rows:
-        d = str(r[0]).strip()[:10]
+        d = _norm_date(r[0])
         by_date.setdefault(d, []).append(r)
     to_add, skipped = [], []
     for d in sorted(by_date):
@@ -227,7 +235,7 @@ def save(rows: list[list]):
     if not to_add:
         print("  추가할 신규 날짜 없음 (윈도우 내 모든 날짜가 이미 적재됨)")
         return
-    added = sorted({str(r[0]).strip()[:10] for r in to_add})
+    added = sorted({_norm_date(r[0]) for r in to_add})
     _append_with_retry(sheet, to_add)
     print(f"  ✅ 신규 날짜 {added} → {len(to_add)}행 추가 완료")
 

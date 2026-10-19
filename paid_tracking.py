@@ -17,6 +17,7 @@
   python paid_tracking.py            # dry-run (샘플 로그만)
   python paid_tracking.py write      # 실제 기록
 """
+import re
 import sys
 import time
 from datetime import date, datetime, timedelta, timezone
@@ -27,7 +28,7 @@ from google.oauth2.service_account import Credentials
 SERVICE_ACCOUNT_FILE = "service_account.json"
 
 ADS_SPREADSHEET_ID = "1AhVPPUq6Npri72uhtFcOUVMBl1jA7nf2P0qDCDRRKfA"
-ADS_TAB = "광고소재성과"
+ADS_TAB = "소재별 광고성과"   # (구 '광고소재성과'에서 리네임)
 
 DST_SPREADSHEET_ID = "1JFq6m2-rvSpiGKQsTpr91Hj-RckHpqFfEl_BLkQI_hs"
 DST_TAB = "PAID 성과 트래킹 (GMV)"
@@ -154,9 +155,12 @@ def main():
         t = total.setdefault(vid, blank())
         t[0] += imp; t[1] += clk; t[2] += cost; t[3] += ordc; t[4] += rev
 
-        ds = str(row[i_date])[:10] if len(row) > i_date else ""
+        # 날짜 표시 형식('2026-10-14' / '2026. 10. 14')이 달라도 인식
+        m = re.search(r"(\d{4})\D+(\d{1,2})\D+(\d{1,2})", str(row[i_date])) if len(row) > i_date else None
         try:
-            wk = datetime.strptime(ds, "%Y-%m-%d").date().isocalendar()
+            if not m:
+                raise ValueError
+            wk = datetime(int(m.group(1)), int(m.group(2)), int(m.group(3))).date().isocalendar()
             wkey = (wk[0], wk[1])
         except ValueError:
             continue
