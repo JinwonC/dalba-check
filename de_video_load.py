@@ -11,7 +11,7 @@
 - Video ID·PID(19자리)는 숫자로 들어가면 뒷자리가 손실되므로 텍스트(' 접두)로 기록
 - 발행일자는 날짜, 매출·판매수량·뷰는 숫자로 기록 (정렬/합계 가능)
 
-사용: python de_video_load.py data/de_videos_2026-08.csv [full|add-pid]
+사용: python de_video_load.py data/de_videos_2026-08-01_2026-10-19.csv [full|add-pid]
 """
 import csv
 import sys
