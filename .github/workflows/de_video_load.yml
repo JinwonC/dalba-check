@@ -1,0 +1,34 @@
+name: DE Video Load (전체영상)
+
+# DE 제품별 콘텐츠 트랙킹 > 전체영상 탭에 data/ 의 월별 CSV를 적재 (수동 실행)
+on:
+  workflow_dispatch:
+    inputs:
+      csv_path:
+        description: '적재할 CSV 경로'
+        required: false
+        default: 'data/de_videos_2026-08.csv'
+
+jobs:
+  load:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+        with:
+          # 파이썬 스크립트는 이 브랜치에만 있으므로 항상 여기서 체크아웃
+          ref: claude/bypass-sheets-timeout-8nw21
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: pip install gspread google-auth
+
+      - name: Write secret files
+        run: echo '${{ secrets.SERVICE_ACCOUNT_JSON }}' > service_account.json
+
+      - name: Run de_video_load.py
+        run: python de_video_load.py "${{ github.event.inputs.csv_path }}"
