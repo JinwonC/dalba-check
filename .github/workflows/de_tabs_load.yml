@@ -1,0 +1,38 @@
+name: DE Tabs Load (전체영상 + 제품 탭)
+
+# DE 제품별 콘텐츠 트랙킹: 전체영상 탭을 다시 쓰고, 제품 탭(퍼스트/멀티밤)을 PID별로 다시 채움 (수동 실행)
+on:
+  workflow_dispatch:
+    inputs:
+      base:
+        description: 'data/ 아래 CSV 기본 이름 (확장자 제외)'
+        required: false
+        default: 'de_videos_2026-08-01_2026-10-19'
+
+jobs:
+  load:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+        with:
+          # 파이썬 스크립트는 이 브랜치에만 있으므로 항상 여기서 체크아웃
+          ref: claude/bypass-sheets-timeout-8nw21
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: pip install gspread google-auth
+
+      - name: Write secret files
+        run: echo '${{ secrets.SERVICE_ACCOUNT_JSON }}' > service_account.json
+
+      - name: 전체영상 탭 적재
+        run: python de_video_load.py "data/${{ github.event.inputs.base }}.csv" full
+
+      - name: 제품 탭 적재 (퍼스트/멀티밤)
+        if: ${{ !cancelled() }}
+        run: python de_product_tabs.py "data/${{ github.event.inputs.base }}.csv" "data/${{ github.event.inputs.base }}_titles.csv"
