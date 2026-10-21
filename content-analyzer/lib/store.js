@@ -40,6 +40,7 @@ function summaryOf(rec) {
     title: rec.meta?.title || '',
     manager: rec.meta?.manager || '',
     product: rec.meta?.product || '',
+    country: rec.meta?.country || '',
     thumbnail: rec.meta?.thumbnail || '',
     url: rec.meta?.url || rec.embed?.url || '',
     driveUrl: rec.driveUrl || '',

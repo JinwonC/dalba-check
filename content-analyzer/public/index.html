@@ -23,6 +23,22 @@
     border-radius:10px;font-size:15px;background:#fff}
   .bar input[type=text]:focus{outline:none;border-color:var(--gold);box-shadow:0 0 0 3px rgba(184,137,46,.15)}
   .bar input.meta-in{flex:0 1 200px;min-width:150px}
+  .ctry{display:inline-flex;border:1px solid var(--line);border-radius:10px;background:#fff;overflow:hidden;flex-wrap:wrap}
+  .ctry button{border:0;border-right:1px solid var(--line);background:#fff;color:var(--muted);padding:12px 12px;font-size:13.5px;cursor:pointer;white-space:nowrap}
+  .ctry button:last-child{border-right:0}
+  .ctry button:hover{background:var(--gold-soft)}
+  .ctry button.on{background:var(--slate);color:#fff;font-weight:600}
+  .ctry.need{border-color:#dc2626;box-shadow:0 0 0 3px rgba(220,38,38,.15)}
+  .hitem .hcreator .htag.ct{color:#1f2937;background:#eef2f7}
+  .hctrl{flex-wrap:wrap}
+  @media (max-width:640px){
+    .ctry{display:grid;grid-template-columns:repeat(5,1fr);width:100%}
+    .ctry button{padding:9px 2px;font-size:12px;white-space:normal;line-height:1.35}
+    .hctrl{flex:1 1 100%;min-width:0;max-width:100%}
+    .hctrl .hsearch{flex:1 1 100%;width:auto;min-width:0}
+    .hctrl .hfilter{flex:1 1 0;min-width:0;max-width:none}
+  }
+  .ctag{display:inline-block;font-size:12px;font-weight:600;background:#eef2f7;color:#1f2937;border-radius:999px;padding:2px 9px;margin-left:6px}
   .tabs{max-width:1180px;margin:14px auto 0;padding:0 20px;display:flex;gap:8px;justify-content:center;flex-wrap:wrap}
   .tab{border:1px solid var(--line);background:#fff;color:var(--muted);padding:9px 16px;border-radius:999px;font-size:13.5px;cursor:pointer;white-space:nowrap}
   .tab.on{background:var(--slate);color:#fff;border-color:var(--slate)}
@@ -331,6 +347,13 @@
     <span id="fileName" class="filename"></span>
     <input id="manager" type="text" class="meta-in" placeholder="담당자 (예: 최진원)" />
     <input id="product" type="text" class="meta-in" placeholder="제품명 (예: 달바 멀티밤)" />
+    <div class="ctry" id="country" role="radiogroup" aria-label="국가 (필수)" title="국가 (필수)">
+      <button type="button" role="radio" data-c="US">🇺🇸 미국</button>
+      <button type="button" role="radio" data-c="UK">🇬🇧 영국</button>
+      <button type="button" role="radio" data-c="DE">🇩🇪 독일</button>
+      <button type="button" role="radio" data-c="ES">🇪🇸 스페인</button>
+      <button type="button" role="radio" data-c="FR">🇫🇷 프랑스</button>
+    </div>
     <button class="go" id="go">분석하기</button>
   </div>
   <div class="hint" id="analyzerHint">한 번에 <b>최대 5개</b>까지 순차 분석돼요. · 스크랩 + 화면분석에 개당 60~120초. · 분석은 한국어, 스크립트/키워드는 영어 원문 + 한국어 병기. · 업로드는 <b>mp4(H.264)</b> 권장(브라우저 재생·점프 지원).</div>
@@ -466,6 +489,26 @@ $('#url').addEventListener('keydown', (e)=>{ if(e.key==='Enter') run(); });
 const esc = (s)=> String(s??'').replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const num = (n)=> (n===undefined||n===null)?'—':Number(n).toLocaleString();
 
+// Team country — required before analyzing; saved on each analysis as meta.country.
+const COUNTRIES = { US:'🇺🇸 미국', UK:'🇬🇧 영국', DE:'🇩🇪 독일', ES:'🇪🇸 스페인', FR:'🇫🇷 프랑스' };
+const ctryLabel = (c)=> COUNTRIES[c] || c || '';
+let COUNTRY = (()=>{ try{ const c=localStorage.getItem('country')||''; return COUNTRIES[c]?c:''; }catch{ return ''; } })();
+function setCountry(c){
+  COUNTRY = COUNTRIES[c] ? c : '';
+  try{ localStorage.setItem('country', COUNTRY); }catch{}
+  document.querySelectorAll('#country button').forEach(b=>{ const on=b.dataset.c===COUNTRY; b.classList.toggle('on',on); b.setAttribute('aria-checked',on?'true':'false'); });
+  $('#country').classList.remove('need');
+}
+document.querySelectorAll('#country button').forEach(b=> b.addEventListener('click', ()=> setCountry(b.dataset.c)));
+setCountry(COUNTRY);
+/** Bar inputs → tags stored on each analysis. Returns null (and shows why) if incomplete. */
+function readTags(){
+  const manager = $('#manager').value.trim(), product = $('#product').value.trim();
+  if(!manager || !product){ $('#status').innerHTML='<div class="err">담당자와 제품명을 입력하세요. (필수)</div>'; return null; }
+  if(!COUNTRY){ $('#country').classList.add('need'); $('#status').innerHTML='<div class="err">국가를 선택하세요. (필수)</div>'; return null; }
+  return { manager, product, country: COUNTRY };
+}
+
 function renderTikTok(videoId, url){
   const wrap = $('#videoWrap');
   wrap.innerHTML = `<blockquote class="tiktok-embed" cite="${esc(url)}" data-video-id="${esc(videoId)}"
@@ -565,7 +608,7 @@ function renderMeta(meta){
   const st = meta.stats||{};
   $('#vmeta').innerHTML = `
     <h2>${esc(meta.title||'(제목 없음)')}</h2>
-    <div class="author">@${esc(meta.author||'unknown')} ${meta.durationSeconds?('· '+meta.durationSeconds+'초'):''}</div>
+    <div class="author">@${esc(meta.author||'unknown')} ${meta.durationSeconds?('· '+meta.durationSeconds+'초'):''}${meta.country?`<span class="ctag">${esc(ctryLabel(meta.country))}</span>`:''}</div>
     <div class="stats">
       <span class="stat">조회 <b>${num(st.views)}</b></span>
       <span class="stat">좋아요 <b>${num(st.likes)}</b></span>
@@ -771,6 +814,7 @@ let HISTORY = [];
 let HIST_ERR = null;
 let HIST_OPEN = (localStorage.getItem('histOpen') ?? '1') === '1';
 let HIST_MGR = localStorage.getItem('histMgr') || '';
+let HIST_CTRY = localStorage.getItem('histCtry') || '';
 let HIST_Q = '';
 let HIST_PAGE = 0;
 let HIST_TYPING = false;
@@ -787,8 +831,9 @@ function filteredHistory(){
   const terms = HIST_Q.trim().toLowerCase().split(/\s+/).filter(Boolean).map(t=>t.replace(/^@/,''));
   return HISTORY.filter(it=>{
     if(HIST_MGR && (it.manager||'').trim()!==HIST_MGR) return false;
+    if(HIST_CTRY && (HIST_CTRY==='none' ? !!it.country : it.country!==HIST_CTRY)) return false;
     if(!terms.length) return true;
-    const hay = [it.creator,it.id,it.title,it.product,it.manager]
+    const hay = [it.creator,it.id,it.title,it.product,it.manager,it.country,ctryLabel(it.country)]
       .map(x=>String(x||'').toLowerCase()).join('  ');
     return terms.every(t=>hay.includes(t));
   });
@@ -797,7 +842,7 @@ function hitemHTML(it){ return `
     <div class="hitem" data-id="${esc(it.id)}">
       ${it.thumbnail?`<img src="${esc(it.thumbnail)}" referrerpolicy="no-referrer" onerror="this.style.visibility='hidden'">`:'<div style="width:42px;height:54px;border-radius:6px;background:#eee"></div>'}
       <div class="hmain">
-        <div class="hcreator">@${esc(it.creator||'unknown')}${it.manager?`<span class="htag">👤 ${esc(it.manager)}</span>`:''}${it.product?`<span class="htag">📦 ${esc(it.product)}</span>`:''}</div>
+        <div class="hcreator">@${esc(it.creator||'unknown')}${it.country?`<span class="htag ct">${esc(ctryLabel(it.country))}</span>`:''}${it.manager?`<span class="htag">👤 ${esc(it.manager)}</span>`:''}${it.product?`<span class="htag">📦 ${esc(it.product)}</span>`:''}</div>
         <div class="htitle">${esc(it.title||'')}</div>
       </div>
       <div class="hdate">${fmtDate(it.savedAt)}</div>
@@ -829,20 +874,26 @@ function renderHistoryList(){
 
   const opts = managerCounts();
   const search = `<input id="histSearch" class="hsearch" type="search" autocomplete="off"
-      placeholder="크리에이터 · 영상ID · 제품 검색" value="${esc(HIST_Q)}" />`;
+      placeholder="크리에이터 · 영상ID · 제품 · 국가 검색" value="${esc(HIST_Q)}" />`;
   const filter = `<select id="histFilter" class="hfilter" title="담당자 필터">
       <option value="">전체 담당자 (${HISTORY.length})</option>
       ${opts.map(([m,c])=>`<option value="${esc(m)}" ${m===HIST_MGR?'selected':''}>${esc(m)} (${c})</option>`).join('')}
     </select>`;
+  const cc = new Map(); HISTORY.forEach(it=>{ const k=it.country||'none'; cc.set(k,(cc.get(k)||0)+1); });
+  const cfilter = `<select id="histCtry" class="hfilter" title="국가 필터">
+      <option value="">전체 국가 (${HISTORY.length})</option>
+      ${Object.keys(COUNTRIES).map(c=>`<option value="${c}" ${c===HIST_CTRY?'selected':''}>${esc(COUNTRIES[c])} (${cc.get(c)||0})</option>`).join('')}
+      ${cc.get('none')?`<option value="none" ${HIST_CTRY==='none'?'selected':''}>국가 미지정 (${cc.get('none')})</option>`:''}
+    </select>`;
   const toggle = `<button id="histToggle" class="htoggle">${HIST_OPEN?'접기':`펼치기 (${list.length})`}</button>`;
 
-  const scope = (HIST_Q.trim() || HIST_MGR)
+  const scope = (HIST_Q.trim() || HIST_MGR || HIST_CTRY)
     ? `검색결과 ${list.length}건 / 전체 ${HISTORY.length}건`
     : `총 ${HISTORY.length}건`;
   const range = (HIST_OPEN && list.length) ? ` · ${start+1}-${Math.min(start+PAGE_SIZE, list.length)} 표시` : '';
   const head = `<div class="hhead">
       <h4>📁 분석 기록 · ${esc(scope)}${range} · 클릭하면 다시 봅니다</h4>
-      <div class="hctrl">${search}${filter}${toggle}</div>
+      <div class="hctrl">${search}${cfilter}${filter}${toggle}</div>
     </div>`;
 
   const pager = (HIST_OPEN && pages > 1) ? `<div class="hpager">
@@ -855,10 +906,16 @@ function renderHistoryList(){
 
   const body = !HIST_OPEN ? '' :
     (pageItems.length ? `<div class="hlist">${pageItems.map(hitemHTML).join('')}</div>${pager}`
-                      : `<div class="hempty">${HIST_Q.trim()?'검색 결과가 없습니다.':'해당 담당자의 기록이 없습니다.'}</div>`);
+                      : `<div class="hempty">${HIST_Q.trim()?'검색 결과가 없습니다.':'조건에 맞는 기록이 없습니다.'}</div>`);
   box.innerHTML = head + body;
 
   $('#histToggle').addEventListener('click', ()=>{ HIST_OPEN=!HIST_OPEN; localStorage.setItem('histOpen',HIST_OPEN?'1':'0'); renderHistoryList(); });
+  $('#histCtry').addEventListener('change', (e)=>{
+    HIST_CTRY = e.target.value; localStorage.setItem('histCtry', HIST_CTRY);
+    HIST_PAGE = 0;
+    if(!HIST_OPEN){ HIST_OPEN=true; localStorage.setItem('histOpen','1'); }
+    renderHistoryList();
+  });
   $('#histFilter').addEventListener('change', (e)=>{
     HIST_MGR = e.target.value; localStorage.setItem('histMgr', HIST_MGR);
     HIST_PAGE = 0;
@@ -965,7 +1022,7 @@ async function proceed(s, opts={}){
     try{
       const saved = await postJSON('/api/save', { meta:s.meta, embed:s.embed, report:rep, comments:commentsRec, video:data.video||null });
       if($('#driveSlot')) $('#driveSlot').innerHTML = driveSlotHTML(saved?.driveUrl);
-      prependHistory({ id:s.embed?.videoId, creator:s.meta?.author, title:s.meta?.title, manager:s.meta?.manager, product:s.meta?.product, thumbnail:s.meta?.thumbnail, savedAt:Date.now() });
+      prependHistory({ id:s.embed?.videoId, creator:s.meta?.author, title:s.meta?.title, manager:s.meta?.manager, product:s.meta?.product, country:s.meta?.country, thumbnail:s.meta?.thumbnail, savedAt:Date.now() });
       setTimeout(loadHistory, 5000);
     }catch(e){ if($('#driveSlot')) $('#driveSlot').innerHTML='<span class="copy" style="opacity:.55;cursor:default">Drive 저장 실패</span>'; }
   })();
@@ -977,12 +1034,12 @@ async function proceed(s, opts={}){
 const MAX_BATCH = 5;
 
 // --- one-item preparers (shared by single + batch flows) ---
-async function scrapeLink(url, manager, product){
+async function scrapeLink(url, tags){
   const s = await postJSON('/api/scrape', { url });
-  s.meta = { ...(s.meta||{}), manager, product };
+  s.meta = { ...(s.meta||{}), ...tags };
   return s;
 }
-async function uploadFile(file, manager, product, idx=0){
+async function uploadFile(file, tags, idx=0){
   if(!/^video\//.test(file.type||'')) throw new Error(`${file.name}: 영상 파일이 아닙니다.`);
   if(!window.blobUpload) throw new Error('업로드 모듈 로딩 중… 잠시 후 다시 시도하세요.');
   const vid = 'up_'+Date.now()+'_'+idx;
@@ -993,7 +1050,7 @@ async function uploadFile(file, manager, product, idx=0){
   const previewUrl = URL.createObjectURL(file);
   const s = {
     platform:'upload',
-    meta:{ platform:'upload', url:'', title:file.name.replace(/\.[^.]+$/,''), author:'(업로드)', stats:{}, hashtags:[], manager, product },
+    meta:{ platform:'upload', url:'', title:file.name.replace(/\.[^.]+$/,''), author:'(업로드)', stats:{}, hashtags:[], ...tags },
     embed:{ platform:'upload', videoId:vid, url:'', thumbnail:'' },
     media:{ videoUrl: blob.url, subtitleUrl:'' },
     comments:null,
@@ -1021,7 +1078,7 @@ function renderBatch(){
   el.innerHTML = `<div class="bhead">${head}</div>${rows}`;
   if(BATCH.finished){ const x=$('#batchX'); x && x.addEventListener('click', ()=>{ BATCH=null; renderBatch(); }); }
 }
-async function runBatch(items, manager, product){
+async function runBatch(items, tags){
   BATCH = { n: items.length, i: 0, finished:false,
             items: items.map(it=>({ label: it.kind==='upload'? it.file.name : it.url, status:'pending', note:'' })) };
   renderBatch();
@@ -1033,11 +1090,11 @@ async function runBatch(items, manager, product){
       const opts = { sync:true, batchIndex:i, batchTotal:items.length };
       let s;
       if(items[i].kind==='upload'){
-        const r = await uploadFile(items[i].file, manager, product, i);
+        const r = await uploadFile(items[i].file, tags, i);
         s = r.s; opts.previewUrl = r.previewUrl; opts.noComments = true;
       } else {
         $('#status').innerHTML = `<div class="loading"><div class="spinner"></div>${i+1}/${items.length} · 영상 가져오는 중…</div>`;
-        s = await scrapeLink(items[i].url, manager, product);
+        s = await scrapeLink(items[i].url, tags);
       }
       const res = await proceed(s, opts);
       BATCH.items[i].status='done';
@@ -1055,17 +1112,15 @@ async function runBatch(items, manager, product){
 // LINK flow (TikTok / Instagram) — one link or up to 5.
 async function run(){
   const raw = $('#url').value.trim();
-  const manager = $('#manager').value.trim();
-  const product = $('#product').value.trim();
   const urls = [...new Set(raw.split(/[\s,]+/).map(x=>x.trim()).filter(Boolean))];
   if(!urls.length){ $('#status').innerHTML='<div class="err">틱톡 또는 인스타그램 링크를 입력하세요.</div>'; return; }
-  if(!manager || !product){ $('#status').innerHTML='<div class="err">담당자와 제품명을 입력하세요. (필수)</div>'; return; }
+  const tags = readTags(); if(!tags) return;
   if(urls.length > MAX_BATCH){ $('#status').innerHTML=`<div class="err">링크는 최대 ${MAX_BATCH}개까지 한 번에 넣을 수 있어요. (지금 ${urls.length}개)</div>`; return; }
-  if(urls.length > 1){ return runBatch(urls.map(u=>({kind:'link', url:u})), manager, product); }
+  if(urls.length > 1){ return runBatch(urls.map(u=>({kind:'link', url:u})), tags); }
   $('#go').disabled = true; $('#layout').style.display='none';
   $('#status').innerHTML = '<div class="loading"><div class="spinner"></div>1/2 · 영상 가져오는 중…</div>';
   try{
-    const s = await scrapeLink(urls[0], manager, product);
+    const s = await scrapeLink(urls[0], tags);
     await proceed(s);
   }catch(err){ showErr(err); }
   finally{ $('#go').disabled = false; }
@@ -1074,19 +1129,17 @@ async function run(){
 // UPLOAD flow (video file) — one file or up to 5.
 async function runUpload(){
   const files = [...$('#file').files];
-  const manager = $('#manager').value.trim();
-  const product = $('#product').value.trim();
   if(!files.length){ $('#status').innerHTML='<div class="err">영상 파일을 선택하세요.</div>'; return; }
-  if(!manager || !product){ $('#status').innerHTML='<div class="err">담당자와 제품명을 입력하세요. (필수)</div>'; return; }
+  const tags = readTags(); if(!tags) return;
   if(files.length > MAX_BATCH){ $('#status').innerHTML=`<div class="err">영상은 최대 ${MAX_BATCH}개까지 한 번에 올릴 수 있어요. (지금 ${files.length}개)</div>`; return; }
   const bad = files.find(f=>!/^video\//.test(f.type||''));
   if(bad){ $('#status').innerHTML=`<div class="err">영상 파일만 업로드할 수 있어요: ${esc(bad.name)}</div>`; return; }
   if(!window.blobUpload){ $('#status').innerHTML='<div class="err">업로드 모듈 로딩 중… 잠시 후 다시 눌러주세요.</div>'; return; }
-  if(files.length > 1){ return runBatch(files.map(f=>({kind:'upload', file:f})), manager, product); }
+  if(files.length > 1){ return runBatch(files.map(f=>({kind:'upload', file:f})), tags); }
   $('#go').disabled = true; $('#layout').style.display='none';
   $('#status').innerHTML = '<div class="loading"><div class="spinner"></div>업로드 중… 0%</div>';
   try{
-    const { s, previewUrl } = await uploadFile(files[0], manager, product, 0);
+    const { s, previewUrl } = await uploadFile(files[0], tags, 0);
     await proceed(s, { noComments:true, previewUrl });
   }catch(err){ showErr(err); }
   finally{ $('#go').disabled = false; }
@@ -1166,7 +1219,7 @@ async function gResolveReport(ref, manager, prodName){
   }
   const vid = gVideoIdFromUrl(ref.url);
   if(vid){ const known=HISTORY.find(h=>h.id===vid); if(known){ const rec=await getJSON('/api/analysis?id='+encodeURIComponent(vid)); if(rec&&rec.report){ ref.creator=rec.meta?.author||''; return { meta:rec.meta||{}, report:rec.report||{}, video:rec.video||null }; } } }
-  const s = await scrapeLink(ref.url, manager, prodName);
+  const s = await scrapeLink(ref.url, { manager, product: prodName, country: COUNTRY });
   const data = await reportWithRetry(s.media||{}, s.meta||{}, s.embed?.videoId);
   ref.creator = s.meta?.author || '';
   postJSON('/api/save', { meta:s.meta, embed:s.embed, report:data.report, comments:null, video:data.video||null }).catch(()=>{});

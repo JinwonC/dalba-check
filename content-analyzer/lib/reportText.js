@@ -7,6 +7,7 @@ export function reportToPlainText(rec = {}) {
   let t = `# ${m.title || '(제목 없음)'}\n`;
   if (m.manager) t += `담당자: ${m.manager}\n`;
   if (m.product) t += `제품명: ${m.product}\n`;
+  if (m.country) t += `국가: ${m.country}\n`;
   t += `크리에이터: @${m.author || ''}\n링크: ${m.url || ''}\n`;
   t += `지표: 조회 ${s.views ?? '-'} · 좋아요 ${s.likes ?? '-'} · 댓글 ${s.comments ?? '-'} · 공유 ${s.shares ?? '-'}\n`;
   t += `해시태그: ${(m.hashtags || []).map((h) => '#' + h).join(' ')}\n\n`;
