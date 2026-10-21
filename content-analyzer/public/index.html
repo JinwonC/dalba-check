@@ -356,7 +356,7 @@
     </div>
     <button class="go" id="go">분석하기</button>
   </div>
-  <div class="hint" id="analyzerHint">한 번에 <b>최대 5개</b>까지 순차 분석돼요. · 스크랩 + 화면분석에 개당 60~120초. · 분석은 한국어, 스크립트/키워드는 영어 원문 + 한국어 병기. · 업로드는 <b>mp4(H.264)</b> 권장(브라우저 재생·점프 지원).</div>
+  <div class="hint" id="analyzerHint">한 번에 <b>최대 5개</b>까지 순차 분석돼요. · 스크랩 + 화면분석에 개당 60~120초. · 분석은 한국어, 스크립트/키워드는 영어 원문 + 한국어 병기. · 업로드는 <b>mp4(H.264)</b> 권장(브라우저 재생·점프 지원). · 업로드 영상은 <b>30일</b> 보관 후 자동 삭제(분석 결과는 계속 남음).</div>
 
   <div class="status" id="status"></div>
   <div class="batchbar" id="batchbar" style="display:none"></div>
@@ -566,7 +566,7 @@ function renderPlayer(videoUrl, embed){
   PLAYER.addEventListener('error', ()=>{ PLAYER=null;
     if(embed?.platform==='tiktok') renderTikTok(embed?.videoId, embed?.url);
     else if(embed?.platform==='instagram') showThumb(embed);
-    else playFallback(videoUrl); // upload: unsupported codec (e.g. .mov/HEVC)
+    else uploadUnplayable(videoUrl); // upload: deleted after retention, or unsupported codec (.mov/HEVC)
   });
 }
 function seekTo(sec){ if(PLAYER && sec!=null){ PLAYER.currentTime = Math.max(0, sec); PLAYER.play().catch(()=>{}); } }
@@ -748,6 +748,21 @@ function showThumb(embed){
   $('#videoWrap').innerHTML = embed?.thumbnail
     ? `<img src="${esc(embed.thumbnail)}" referrerpolicy="no-referrer" onerror="this.parentNode.innerHTML='<div style=\\'color:var(--muted);padding:40px;font-size:13px\\'>📷 분석 후 재생</div>'" style="max-width:340px;width:100%;border-radius:10px;display:block" />`
     : `<div style="color:var(--muted);padding:40px;font-size:13px">📷 분석 후 재생됩니다</div>`;
+}
+// Uploads are kept UPLOAD_RETENTION_DAYS days (server: UPLOAD_MAX_AGE_DAYS). A 404 means it was deleted.
+const UPLOAD_RETENTION_DAYS = 30;
+function uploadUnplayable(url){
+  if(!url) return playFallback(url);
+  fetch(url, { method:'HEAD' })
+    .then(r=> r.status===404 || r.status===410 ? uploadGone() : playFallback(url))
+    .catch(()=> playFallback(url));
+}
+function uploadGone(){
+  $('#videoWrap').innerHTML = `<div style="padding:22px 16px;text-align:center;font-size:13px;color:var(--muted);line-height:1.6">
+    🗑 업로드한 영상 파일이 삭제돼서 다시 재생할 수 없어요.<br>
+    (업로드 영상은 <b>${UPLOAD_RETENTION_DAYS}일</b> 보관 후 자동 삭제)<br>
+    <span style="color:#333">분석 결과는 그대로 볼 수 있어요 →</span>
+  </div>`;
 }
 function playFallback(url){
   $('#videoWrap').innerHTML = `<div style="padding:22px 16px;text-align:center;font-size:13px;color:var(--muted);line-height:1.6">
