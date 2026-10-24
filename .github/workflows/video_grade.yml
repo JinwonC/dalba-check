@@ -27,6 +27,10 @@ on:
         description: '0이 아니면: 이미 평가된 N개를 위 모델로 다시 평가해 일치율만 표시 (시트 안 씀)'
         required: false
         default: '0'
+      extra_args:
+        description: '추가 옵션 (예: --show-header)'
+        required: false
+        default: ''
 
 jobs:
   grade:
@@ -59,4 +63,4 @@ jobs:
         run: |
           ARGS="--sheet-id ${{ github.event.inputs.spreadsheet_id }} --limit ${{ github.event.inputs.limit }} --source ${{ github.event.inputs.source }} --model ${{ github.event.inputs.model }} --compare ${{ github.event.inputs.compare }}"
           if [ -n "${{ github.event.inputs.post_date }}" ]; then ARGS="$ARGS --date ${{ github.event.inputs.post_date }}"; fi
-          python video_grading/grade_sheet.py $ARGS
+          python video_grading/grade_sheet.py $ARGS ${{ github.event.inputs.extra_args }}
