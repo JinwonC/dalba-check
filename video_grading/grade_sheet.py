@@ -302,4 +302,10 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except Exception as e:
+        import traceback
+        tb = traceback.extract_tb(e.__traceback__)[-1]
+        notice(f"오류: {type(e).__name__}: {str(e)[:300]} ({os.path.basename(tb.filename)}:{tb.lineno})")
+        raise
