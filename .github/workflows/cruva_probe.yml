@@ -20,15 +20,24 @@ jobs:
               body = json.dumps({"filters": {"date_range": {"from": d_from, "to": d_to}}, "page_size": 100, "page_number": n}).encode()
               req = urllib.request.Request("https://api.cruva.com/affiliate/videos/list", data=body, method="POST",
                   headers={"Content-Type": "application/json", "x-api-key": key, "x-shop-id": "69b9712fd9c02f34547155d5"})
-              return json.load(urllib.request.urlopen(req, timeout=60)).get("data") or {}
-          start = date(2026, 9, 24)
+              for i in range(6):
+                  try:
+                      return json.load(urllib.request.urlopen(req, timeout=60)).get("data") or {}
+                  except Exception as e:
+                      err = e; time.sleep(3 * (i + 1))
+              print(f"::notice::API 오류 page {n}: {err}"); raise SystemExit(0)
+          start = date(2026, 10, 10)
           stats = defaultdict(lambda: defaultdict(int))
           n = 1
           while True:
               d = page(start.isoformat(), "2026-10-25", n)
               res = d.get("results") or []
               for v in res:
-                  day = str(v.get("post_time") or "")[:10]
+                  raw = str(v.get("post_time") or "")
+                  if "/" in raw[:10]:
+                      m_, d_, y_ = raw[:10].split("/"); day = f"{y_}-{int(m_):02d}-{int(d_):02d}"
+                  else:
+                      day = raw[:10]
                   s = stats[day]
                   s["total"] += 1
                   ok = bool(v.get("transcript") or v.get("on_screen_text") or v.get("content_overview"))
