@@ -1,0 +1,46 @@
+name: Video Daily Load
+
+on:
+  workflow_dispatch:
+    inputs:
+      post_date:
+        description: '포스팅일 (YYYY-MM-DD, LA 기준). 비워두면 LA 기준 어제'
+        required: false
+        default: ''
+      spreadsheet_id:
+        description: '적재할 시트 ID (첫 탭에 적재)'
+        required: false
+        default: '17UnCxe42zE9ey-i0P2FWHfBIExsdehtDbtA9hIh-D_k'
+
+jobs:
+  load:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+        with:
+          # 파이썬 스크립트는 이 브랜치에만 있으므로 항상 여기서 체크아웃
+          ref: claude/bypass-sheets-timeout-8nw21
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: pip install requests gspread google-auth
+
+      - name: Write secret files
+        run: |
+          echo '${{ secrets.SERVICE_ACCOUNT_JSON }}' > service_account.json
+          echo '${{ secrets.TOKENS_JSON }}' > tokens.json
+
+      - name: Run video_daily_load.py
+        run: |
+          DAY="${{ github.event.inputs.post_date }}"
+          if [ -z "$DAY" ]; then
+            DAY=$(TZ='America/Los_Angeles' date -d 'yesterday' '+%Y-%m-%d')
+          fi
+          python video_daily_load.py "$DAY" "${{ github.event.inputs.spreadsheet_id }}"
