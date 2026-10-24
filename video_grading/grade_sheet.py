@@ -1,15 +1,20 @@
 """
 시트(첫 탭)의 영상들을 SKILL.md 기준으로 GOOD/OK/BAD 평가해서 오른쪽 열에 기록
-사용: python video_grading/grade_sheet.py --sheet-id <ID> [--limit N] [--date YYYY-MM-DD]
-- 영상 파일 대신 CRUVA가 영상마다 만들어 둔 AI 분석 데이터(대본·화면 자막·얼굴 노출·조명·훅 등)로 평가한다
+사용: python video_grading/grade_sheet.py --sheet-id <ID> [--limit N] [--date YYYY-MM-DD] [--source auto|cruva|video]
+- cruva: CRUVA가 영상마다 만들어 둔 AI 분석 데이터(대본·화면 자막·얼굴 노출·조명·훅 등)로 평가
+         (CRUVA는 하루 영상의 2~8%만 분석해 둔다. 분석 없는 영상은 비워 둠)
+- video: Apify로 영상 파일을 받아 컨택트시트(extract.py)+Whisper 대본으로 기준서 그대로 평가
+- auto(기본): CRUVA 분석이 있으면 cruva, 없으면 video
 - 등급 열이 비어 있는 행만 평가 (이미 평가한 행은 건너뜀 → 재실행 안전)
-- CRUVA 분석이 아직 없는 영상은 비워 두고 다음 실행 때 다시 시도
-환경변수: ANTHROPIC_API_KEY, CRUVA_API_KEY (GitHub secret)
+환경변수: ANTHROPIC_API_KEY, CRUVA_API_KEY, APIFY_TOKEN (GitHub secret)
 """
 import argparse
+import base64
 import json
 import os
+import subprocess
 import sys
+import tempfile
 import time
 from datetime import datetime, timedelta, timezone
 from typing import List, Literal, Optional
@@ -29,6 +34,7 @@ MODEL = "claude-opus-5-5"
 CRUVA_API = "https://api.cruva.com/affiliate/videos/list"
 CRUVA_SHOP_ID = "69b9712fd9c02f34547155d5"  # CRUVA 내부 US 스토어 ID
 CRUVA_PAGE_SIZE = 100
+APIFY_ACTOR = "clockworks/tiktok-scraper"
 
 GRADE_HEADERS = ["등급", "자동BAD", "훅", "피부증명", "설명", "진정성", "제작품질", "플래그", "근거", "피드백", "평가일시"]
 
@@ -56,6 +62,7 @@ MODE_NOTE = """
 """
 
 YN = Literal["YES", "NO"]
+USAGE = {"in": 0, "cache": 0, "out": 0}
 
 
 class Grade(BaseModel):
@@ -124,21 +131,67 @@ def analyzed(v: dict) -> bool:
     return bool(v.get("transcript") or v.get("on_screen_text") or v.get("content_overview"))
 
 
-def grade(client, system: str, row: dict, v: dict) -> Grade | None:
-    data = {k: val for k, val in v.items() if k not in DROP_FIELDS}
-    text = (
-        f"video_id: {row['video_id']}\n크리에이터: @{row['handle']}\n제품: {row['products']}\n\n"
-        f"CRUVA 분석 데이터:\n{json.dumps(data, ensure_ascii=False, indent=1)}\n\n"
-        "기준서에 따라 평가하라."
-    )
+def apify_download(rows: list[dict], out_dir: str) -> tuple[dict[str, str], float]:
+    """Apify 한 번 실행으로 여러 영상을 받는다 → ({video_id: mp4 경로}, 실행 비용 USD)"""
+    from apify_client import ApifyClient
+    token = os.environ.get("APIFY_TOKEN", "").strip()
+    if not token:
+        print("❌ APIFY_TOKEN 환경변수가 없음 (GitHub secret 등록 필요)")
+        sys.exit(1)
+    ac = ApifyClient(token)
+    urls = [f"https://www.tiktok.com/@{r['handle']}/video/{r['video_id']}" for r in rows]
+    run = ac.actor(APIFY_ACTOR).call(run_input={
+        "postURLs": urls, "shouldDownloadVideos": True, "shouldDownloadCovers": False,
+        "shouldDownloadSubtitles": False, "resultsPerPage": 1,
+    })
+    items = ac.dataset(run["defaultDatasetId"]).list_items().items
+    cost = float((ac.run(run["id"]).get() or {}).get("usageTotalUsd") or 0)
+    paths = {}
+    for it in items:
+        vid = str(it.get("id") or "")
+        media = [u for u in (it.get("mediaUrls") or []) if u]
+        if not vid or not media:
+            continue
+        path = os.path.join(out_dir, f"{vid}.mp4")
+        r = requests.get(media[0], headers={"Authorization": f"Bearer {token}"}, timeout=120)
+        if r.status_code == 200 and r.content:
+            open(path, "wb").write(r.content)
+            paths[vid] = path
+    if items and not paths:
+        notice(f"Apify 결과에 영상 파일이 없음. 항목 키: {sorted(items[0].keys())[:40]}")
+    return paths, cost
+
+
+def video_inputs(mp4: str, out_dir: str, whisper) -> tuple[list, float]:
+    """mp4 → 컨택트시트 이미지 + 타임스탬프 대본 (extract.py 사용)"""
+    r = subprocess.run([sys.executable, "-I", os.path.join(HERE, "extract.py"), mp4, out_dir],
+                       capture_output=True, text=True, check=True)
+    vid, dur, _, sheet = r.stdout.strip().splitlines()[-1].split("\t")
+    segs, info = whisper.transcribe(os.path.join(out_dir, f"{vid}.wav"), beam_size=1, vad_filter=True)
+    transcript = "\n".join(f"{x.start:5.1f}-{x.end:5.1f}  {x.text.strip()}" for x in segs) or "(음성 없음)"
+    img = base64.standard_b64encode(open(sheet, "rb").read()).decode()
+    dur_s = float(dur.rstrip("s"))
+    return [
+        {"type": "image", "source": {"type": "base64", "media_type": "image/jpeg", "data": img}},
+        {"type": "text", "text": f"영상 길이: {dur_s:.1f}초\n\n대본 (언어 감지: {info.language}):\n{transcript}"},
+    ], dur_s
+
+
+def grade(client, system: str, row: dict, inputs: list) -> Grade | None:
+    head = f"video_id: {row['video_id']}\n크리에이터: @{row['handle']}\n제품: {row['products']}"
+    content = [{"type": "text", "text": head}, *inputs,
+               {"type": "text", "text": "기준서에 따라 평가하라. evidence·feedback은 한국어로 쓴다."}]
     resp = client.messages.parse(
         model=MODEL,
         max_tokens=16000,
         system=[{"type": "text", "text": system, "cache_control": {"type": "ephemeral"}}],
         output_config={"effort": "medium"},
-        messages=[{"role": "user", "content": text}],
+        messages=[{"role": "user", "content": content}],
         output_format=Grade,
     )
+    USAGE["in"] += resp.usage.input_tokens + (resp.usage.cache_creation_input_tokens or 0)
+    USAGE["cache"] += resp.usage.cache_read_input_tokens or 0
+    USAGE["out"] += resp.usage.output_tokens
     if resp.stop_reason != "end_turn" or resp.parsed_output is None:
         print(f"  평가 실패 {row['video_id']}: stop_reason={resp.stop_reason}")
         return None
@@ -150,6 +203,7 @@ def main():
     ap.add_argument("--sheet-id", required=True)
     ap.add_argument("--limit", type=int, default=0)
     ap.add_argument("--date", default="")
+    ap.add_argument("--source", choices=["auto", "cruva", "video"], default="auto")
     a = ap.parse_args()
 
     cruva_key = os.environ.get("CRUVA_API_KEY", "").strip()
@@ -188,33 +242,63 @@ def main():
     print(f"  CRUVA {d_from} ~ {d_to}(미포함): {len(cruva)}건")
 
     client = anthropic.Anthropic()
-    system = open(SKILL_PATH, encoding="utf-8").read() + MODE_NOTE
+    skill = open(SKILL_PATH, encoding="utf-8").read()
+    systems = {"cruva": skill + MODE_NOTE, "video": skill}
+
+    # 영상별 평가 경로 결정
+    for row in todo:
+        v = cruva.get(row["video_id"])
+        if a.source == "video" or (a.source == "auto" and not (v and analyzed(v))):
+            row["via"] = "video"
+        elif v is None:
+            row["via"] = "na"
+        else:
+            row["via"] = "cruva" if analyzed(v) else "wait"
 
     stats = {"GOOD": 0, "OK": 0, "BAD": 0, "N/A": 0, "분석대기": 0, "실패": 0}
+    tmp = tempfile.mkdtemp()
+    mp4s, whisper = {}, None
+    video_rows = [r for r in todo if r["via"] == "video"]
+    if video_rows:
+        mp4s, cost = apify_download(video_rows, tmp)
+        notice(f"Apify: {len(video_rows)}건 요청 → {len(mp4s)}건 받음, 비용 ${cost:.4f} (1건당 ${cost / max(len(video_rows), 1):.4f})")
+        from faster_whisper import WhisperModel
+        whisper = WhisperModel("small", device="cpu", compute_type="int8")
+
     for n, row in enumerate(todo, 1):
-        v = cruva.get(row["video_id"])
-        if v is None:
+        if row["via"] == "na":
             result = ["N/A", "", "", "", "", "", "", "", "CRUVA에 영상 없음(삭제·비공개 등)", ""]
             stats["N/A"] += 1
-        elif not analyzed(v):
-            stats["분석대기"] += 1  # 비워 두고 다음 실행 때 다시
+        elif row["via"] == "wait":
+            stats["분석대기"] += 1  # CRUVA 분석 없음 → 비워 둠
             continue
+        elif row["via"] == "video" and row["video_id"] not in mp4s:
+            result = ["N/A", "", "", "", "", "", "", "", "영상 다운로드 불가(삭제·비공개 등)", ""]
+            stats["N/A"] += 1
         else:
-            g = grade(client, system, row, v)
+            if row["via"] == "video":
+                inputs, _ = video_inputs(mp4s[row["video_id"]], os.path.join(tmp, row["video_id"]), whisper)
+            else:
+                data = {k: val for k, val in cruva[row["video_id"]].items() if k not in DROP_FIELDS}
+                inputs = [{"type": "text", "text": "CRUVA 분석 데이터:\n" + json.dumps(data, ensure_ascii=False, indent=1)}]
+            g = grade(client, systems[row["via"]], row, inputs)
             if g is None:
                 stats["실패"] += 1
                 continue
             result = [g.grade, g.gate or "", g.hook, g.proof_on_skin, g.explanation, g.authenticity,
-                      g.production, ", ".join(g.flags), g.evidence, g.feedback]
+                      g.production, ", ".join(g.flags), f"[{'영상' if row['via'] == 'video' else 'CRUVA'}] {g.evidence}", g.feedback]
             stats[g.grade] += 1
         result.append(datetime.now(timezone(timedelta(hours=9))).strftime("%Y-%m-%d %H:%M"))
         rng = f"{col_letter(g0 + 1)}{row['row']}:{col_letter(g0 + len(GRADE_HEADERS))}{row['row']}"
         ws.update(range_name=rng, values=[result])
         print(f"  [{n}/{len(todo)}] {row['video_id']} → {result[0]}")
         if a.limit and a.limit <= 20:  # 시범 실행은 결과를 요약에도 남김
-            notice(f"@{row['handle']} {row['video_id']} → {result[0]} {result[1]} | 훅 {result[2]}·피부 {result[3]}·설명 {result[4]}·진정성 {result[5]}·제작 {result[6]} | {result[7]} | {result[9][:150]}")
+            notice(f"@{row['handle']} {row['video_id']} [{row['via']}] → {result[0]} {result[1]} | 훅 {result[2]}·피부 {result[3]}·설명 {result[4]}·진정성 {result[5]}·제작 {result[6]} | {result[7]} | {result[9][:150]}")
 
     notice("결과 " + " / ".join(f"{k} {v}" for k, v in stats.items()))
+    # claude-opus-5-5: 입력 $4 / 캐시 읽기 $0.2 / 출력 $20 (per 1M tokens)
+    usd = USAGE["in"] * 4e-6 + USAGE["cache"] * 0.2e-6 + USAGE["out"] * 20e-6
+    notice(f"Claude 사용량: 입력 {USAGE['in']:,} / 캐시 {USAGE['cache']:,} / 출력 {USAGE['out']:,} 토큰 ≈ ${usd:.3f}")
 
 
 if __name__ == "__main__":
