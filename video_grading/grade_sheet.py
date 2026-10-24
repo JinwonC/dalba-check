@@ -41,7 +41,9 @@ CRUVA_SHOP_ID = "69b9712fd9c02f34547155d5"  # CRUVA 내부 US 스토어 ID
 CRUVA_PAGE_SIZE = 100
 APIFY_ACTOR = "clockworks/tiktok-scraper"
 
-GRADE_HEADERS = ["등급", "자동BAD", "훅", "피부증명", "설명", "진정성", "제작품질", "플래그", "근거", "피드백", "평가일시"]
+# CTA는 나중에 추가된 요소라 기존 열 배치를 깨지 않도록 맨 끝에 둔다
+GRADE_HEADERS = ["등급", "자동BAD", "훅", "피부증명", "설명", "진정성", "제작품질", "플래그", "근거", "피드백", "평가일시", "CTA"]
+CTA = GRADE_HEADERS.index("CTA")
 
 # 판매 성과는 등급 근거가 아니므로(SKILL.md) 모델에 넘기지 않는다
 DROP_FIELDS = {"ad_spend", "commission", "cpa", "ctr", "gmv", "orders", "roi", "units_sold", "view_count",
@@ -62,6 +64,7 @@ MODE_NOTE = """
 - 자동 BAD: `is_faceless`/`face_visible`·`content_overview`로 사람 없이 제품만이면 PRODUCT_ONLY, `is_ai`가 참이면 AI_CONTENT, 대본과 화면 자막이 모두 비었으면 NO_TALK_NO_TEXT.
 - **피부 증명**은 프레임을 직접 못 보므로 `content_overview`·대본·자막에 '얼굴에 직접 바르고 결과를 보여준다'는 근거가 있을 때만 YES. 손·손등만, 병만 들고 설명이면 NO. 근거가 없으면 NO로 두고 evidence에 "피부 증명 확인 불가(프레임 없음)"라고 쓴다.
 - 제작 품질은 `lighting_quality`와 얼굴 노출로 판단한다.
+- CTA는 `transcript`의 마지막 부분과 `on_screen_text`에 구매 유도(할인 중, 오렌지 카트, 지금 구매 등)가 있는지로 판단한다.
 - CRUVA의 `hooks.score` 같은 점수를 그대로 옮기지 말고 기준서의 YES/NO 기준으로 다시 판단한다.
 - evidence는 데이터에서 본 근거를 필드명과 함께 쓴다(대본 인용은 짧게). evidence·feedback은 한국어로 쓴다.
 """
@@ -77,6 +80,7 @@ class Grade(BaseModel):
     proof_on_skin: YN
     explanation: YN
     authenticity: YN
+    cta: YN
     production: Literal["GOOD", "BAD"]
     grade: Literal["GOOD", "OK", "BAD"]
     flags: List[Literal["CLAIM", "MISINFO", "NON_EN", "PROFANITY", "LONG"]]
@@ -85,11 +89,11 @@ class Grade(BaseModel):
 
 
 def rule_grade(gate, yn: list[str], production: str) -> str:
-    """SKILL.md 3단계 규칙: 자동 BAD 또는 YES 1개 이하 → BAD / 4개 YES+제작 양호 → GOOD / 나머지 → OK"""
+    """SKILL.md 3단계 규칙: 자동 BAD 또는 YES 1개 이하 → BAD / 전부 YES+제작 양호 → GOOD / 나머지 → OK"""
     yes = sum(v == "YES" for v in yn)
     if gate or yes <= 1:
         return "BAD"
-    if yes == 4 and production == "GOOD":
+    if yes == len(yn) and production == "GOOD":
         return "GOOD"
     return "OK"
 
@@ -256,14 +260,19 @@ def main():
         ws.update(range_name=f"{col_letter(len(header) + 1)}1", values=[GRADE_HEADERS])
         header = header + GRADE_HEADERS
     g0 = header.index(GRADE_HEADERS[0])
+    if "CTA" not in header:  # CTA 추가 전에 만든 시트: 평가일시 다음 칸에 CTA 헤더만 추가
+        ws.update(range_name=f"{col_letter(g0 + CTA + 1)}1", values=[["CTA"]])
+        header = header[:g0 + CTA] + [""] * max(0, g0 + CTA - len(header)) + ["CTA"]
     notice(f"평가 열 위치: '{GRADE_HEADERS[0]}' = {col_letter(g0 + 1)}열 ~ '{GRADE_HEADERS[-1]}' = {col_letter(g0 + len(GRADE_HEADERS))}열")
 
     fixes = []
     for i, r in enumerate(values[1:], start=2):
         r = r + [""] * (len(header) - len(r))
         cur = r[g0].strip()
-        if cur in ("GOOD", "OK", "BAD"):
-            want = rule_grade(r[g0 + 1].strip(), [x.strip() for x in r[g0 + 2:g0 + 6]], r[g0 + 6].strip())
+        # CTA가 빈 행은 CTA 추가 전(4요소)에 평가한 행이라 건드리지 않는다
+        if cur in ("GOOD", "OK", "BAD") and r[g0 + CTA].strip():
+            want = rule_grade(r[g0 + 1].strip(), [x.strip() for x in r[g0 + 2:g0 + 6]] + [r[g0 + CTA].strip()],
+                              r[g0 + 6].strip())
             if want != cur:
                 fixes.append({"range": f"{col_letter(g0 + 1)}{i}", "values": [[want]]})
                 fixes.append({"range": f"{col_letter(g0 + 10)}{i}",
@@ -342,17 +351,21 @@ def main():
                 stats["실패"] += 1
                 continue
             # 등급은 모델 판단 대신 체크리스트로 계산 (모델이 규칙을 어기는 경우가 있음)
-            final = rule_grade(g.gate, [g.hook, g.proof_on_skin, g.explanation, g.authenticity], g.production)
+            final = rule_grade(g.gate, [g.hook, g.proof_on_skin, g.explanation, g.authenticity, g.cta], g.production)
             feedback = g.feedback if final == g.grade else f"[등급 규칙 보정: {g.grade}→{final}] {g.feedback}"
             result = [final, g.gate or "", g.hook, g.proof_on_skin, g.explanation, g.authenticity,
                       g.production, ", ".join(g.flags), f"[{'영상' if row['via'] == 'video' else 'CRUVA'}] {g.evidence}", feedback]
             stats[final] += 1
-        result.append(datetime.now(timezone(timedelta(hours=9))).strftime("%Y-%m-%d %H:%M"))
+            result.append(None)  # 평가일시 자리
+            result.append(g.cta)
+        if len(result) == 10:
+            result += [None, ""]
+        result[10] = datetime.now(timezone(timedelta(hours=9))).strftime("%Y-%m-%d %H:%M")
         rng = f"{col_letter(g0 + 1)}{row['row']}:{col_letter(g0 + len(GRADE_HEADERS))}{row['row']}"
         ws.update(range_name=rng, values=[result])
         print(f"  [{n}/{len(todo)}] {row['video_id']} → {result[0]}")
         if a.limit and a.limit <= 20 and n <= 6:  # 시범 실행은 결과를 요약에도 남김 (요약은 단계당 10개까지만 보임)
-            notice(f"@{row['handle']} {row['video_id']} [{row['via']}] → {result[0]} {result[1]} | 훅 {result[2]}·피부 {result[3]}·설명 {result[4]}·진정성 {result[5]}·제작 {result[6]} | {result[7]} | {result[9][:150]}")
+            notice(f"@{row['handle']} {row['video_id']} [{row['via']}] → {result[0]} {result[1]} | 훅 {result[2]}·피부 {result[3]}·설명 {result[4]}·진정성 {result[5]}·CTA {result[11]}·제작 {result[6]} | {result[7]} | {result[9][:150]}")
 
     notice("결과 " + " / ".join(f"{k} {v}" for k, v in stats.items()))
     report_usage(a.model)
@@ -369,9 +382,9 @@ def compare(a, ws, values, header, g0):
     rows = []
     for i, r in enumerate(values[1:], start=2):
         r = r + [""] * (len(header) - len(r))
-        if r[g0] in ("GOOD", "OK", "BAD") and r[g0 + 8].startswith("[영상]"):
+        if r[g0] in ("GOOD", "OK", "BAD") and r[g0 + 8].startswith("[영상]") and r[g0 + CTA].strip():
             rows.append({"row": i, "video_id": r[0].strip().lstrip("'"), "handle": r[2].strip().lstrip("@"),
-                         "products": r[11], "old": [r[g0]] + [x.strip() for x in r[g0 + 2:g0 + 7]]})
+                         "products": r[11], "old": [r[g0]] + [x.strip() for x in r[g0 + 2:g0 + 7]] + [r[g0 + CTA].strip()]})
     rows = rows[:a.compare]
     tmp = tempfile.mkdtemp()
     mp4s, cost = apify_download(rows, tmp)
@@ -379,8 +392,8 @@ def compare(a, ws, values, header, g0):
     whisper = WhisperModel("small", device="cpu", compute_type="int8")
     client = anthropic.Anthropic()
     system = open(SKILL_PATH, encoding="utf-8").read()
-    names = ["등급", "훅", "피부", "설명", "진정성", "제작"]
-    same = [0] * 6
+    names = ["등급", "훅", "피부", "설명", "진정성", "제작", "CTA"]
+    same = [0] * 7
     diffs, n = [], 0
     for row in rows:
         if row["video_id"] not in mp4s:
@@ -389,15 +402,15 @@ def compare(a, ws, values, header, g0):
         g = grade(client, system, row, inputs, a.model)
         if g is None:
             continue
-        new = [rule_grade(g.gate, [g.hook, g.proof_on_skin, g.explanation, g.authenticity], g.production),
-               g.hook, g.proof_on_skin, g.explanation, g.authenticity, g.production]
+        new = [rule_grade(g.gate, [g.hook, g.proof_on_skin, g.explanation, g.authenticity, g.cta], g.production),
+               g.hook, g.proof_on_skin, g.explanation, g.authenticity, g.production, g.cta]
         n += 1
-        for k in range(6):
+        for k in range(7):
             same[k] += new[k] == row["old"][k]
         if new[0] != row["old"][0]:
             diffs.append(f"@{row['handle']} 기존 {row['old'][0]}→{new[0]} ("
-                         + ", ".join(f"{names[k]} {row['old'][k]}→{new[k]}" for k in range(1, 6) if new[k] != row["old"][k]) + ")")
-    notice(f"비교 {n}건 일치율: " + " / ".join(f"{names[k]} {same[k]}/{n}" for k in range(6)))
+                         + ", ".join(f"{names[k]} {row['old'][k]}→{new[k]}" for k in range(1, 7) if new[k] != row["old"][k]) + ")")
+    notice(f"비교 {n}건 일치율: " + " / ".join(f"{names[k]} {same[k]}/{n}" for k in range(7)))
     for d in diffs[:6]:
         notice("등급 다름: " + d)
     report_usage(a.model)
