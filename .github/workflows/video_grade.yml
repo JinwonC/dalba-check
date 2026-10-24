@@ -19,6 +19,14 @@ on:
         description: 'auto = CRUVA 분석 있으면 CRUVA, 없으면 Apify 영상 / cruva / video'
         required: false
         default: 'auto'
+      model:
+        description: '평가 모델 (claude-haiku-5-5 / claude-sonnet-5-5 / claude-opus-5-5)'
+        required: false
+        default: 'claude-sonnet-5-5'
+      compare:
+        description: '0이 아니면: 이미 평가된 N개를 위 모델로 다시 평가해 일치율만 표시 (시트 안 씀)'
+        required: false
+        default: '0'
 
 jobs:
   grade:
@@ -49,6 +57,6 @@ jobs:
           CRUVA_API_KEY: ${{ secrets.CRUVA_API_KEY }}
           APIFY_TOKEN: ${{ secrets.APIFY_TOKEN }}
         run: |
-          ARGS="--sheet-id ${{ github.event.inputs.spreadsheet_id }} --limit ${{ github.event.inputs.limit }} --source ${{ github.event.inputs.source }}"
+          ARGS="--sheet-id ${{ github.event.inputs.spreadsheet_id }} --limit ${{ github.event.inputs.limit }} --source ${{ github.event.inputs.source }} --model ${{ github.event.inputs.model }} --compare ${{ github.event.inputs.compare }}"
           if [ -n "${{ github.event.inputs.post_date }}" ]; then ARGS="$ARGS --date ${{ github.event.inputs.post_date }}"; fi
           python video_grading/grade_sheet.py $ARGS
