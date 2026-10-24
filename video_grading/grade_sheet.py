@@ -29,7 +29,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
 SKILL_PATH = os.path.join(ROOT, ".claude", "skills", "video-grading", "SKILL.md")
 SERVICE_ACCOUNT_FILE = os.path.join(ROOT, "service_account.json")
-MODEL = "claude-opus-5-5"
+MODEL = "claude-sonnet-5-5"
 
 CRUVA_API = "https://api.cruva.com/affiliate/videos/list"
 CRUVA_SHOP_ID = "69b9712fd9c02f34547155d5"  # CRUVA 내부 US 스토어 ID
@@ -238,6 +238,7 @@ def main():
         ws.update(range_name=f"{col_letter(len(header) + 1)}1", values=[GRADE_HEADERS])
         header = header + GRADE_HEADERS
     g0 = header.index(GRADE_HEADERS[0])
+    notice(f"평가 열 위치: '{GRADE_HEADERS[0]}' = {col_letter(g0 + 1)}열 ~ '{GRADE_HEADERS[-1]}' = {col_letter(g0 + len(GRADE_HEADERS))}열")
 
     todo = []
     for i, r in enumerate(values[1:], start=2):
@@ -315,8 +316,8 @@ def main():
             notice(f"@{row['handle']} {row['video_id']} [{row['via']}] → {result[0]} {result[1]} | 훅 {result[2]}·피부 {result[3]}·설명 {result[4]}·진정성 {result[5]}·제작 {result[6]} | {result[7]} | {result[9][:150]}")
 
     notice("결과 " + " / ".join(f"{k} {v}" for k, v in stats.items()))
-    # claude-opus-5-5: 입력 $4 / 캐시 읽기 $0.2 / 출력 $20 (per 1M tokens)
-    usd = USAGE["in"] * 4e-6 + USAGE["cache"] * 0.2e-6 + USAGE["out"] * 20e-6
+    # claude-sonnet-5-5: 입력 $2 / 캐시 읽기 $0.2 / 출력 $10 (per 1M tokens)
+    usd = USAGE["in"] * 2e-6 + USAGE["cache"] * 0.2e-6 + USAGE["out"] * 10e-6
     notice(f"Claude 사용량: 입력 {USAGE['in']:,} / 캐시 {USAGE['cache']:,} / 출력 {USAGE['out']:,} 토큰 ≈ ${usd:.3f}")
 
 
