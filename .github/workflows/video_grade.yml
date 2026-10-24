@@ -15,15 +15,11 @@ on:
         description: '최대 평가 개수 (0 = 전부)'
         required: false
         default: '5'
-      download_only:
-        description: '다운로드·프레임·대본만 테스트 (API 호출·시트 쓰기 없음)'
-        type: boolean
-        default: false
 
 jobs:
   grade:
     runs-on: ubuntu-latest
-    timeout-minutes: 300
+    timeout-minutes: 120
 
     steps:
       - name: Checkout repo
@@ -38,7 +34,7 @@ jobs:
           python-version: '3.11'
 
       - name: Install dependencies
-        run: pip install gspread google-auth anthropic pydantic yt-dlp imageio-ffmpeg pillow faster-whisper
+        run: pip install gspread google-auth anthropic pydantic requests
 
       - name: Write secret files
         run: echo '${{ secrets.SERVICE_ACCOUNT_JSON }}' > service_account.json
@@ -46,8 +42,8 @@ jobs:
       - name: Run grade_sheet.py
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          CRUVA_API_KEY: ${{ secrets.CRUVA_API_KEY }}
         run: |
           ARGS="--sheet-id ${{ github.event.inputs.spreadsheet_id }} --limit ${{ github.event.inputs.limit }}"
           if [ -n "${{ github.event.inputs.post_date }}" ]; then ARGS="$ARGS --date ${{ github.event.inputs.post_date }}"; fi
-          if [ "${{ github.event.inputs.download_only }}" = "true" ]; then ARGS="$ARGS --download-only"; fi
           python video_grading/grade_sheet.py $ARGS
