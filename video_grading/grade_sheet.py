@@ -41,10 +41,18 @@ CRUVA_SHOP_ID = "69b9712fd9c02f34547155d5"  # CRUVA 내부 US 스토어 ID
 CRUVA_PAGE_SIZE = 100
 APIFY_ACTOR = "clockworks/tiktok-scraper"
 
-# CTA·언어는 나중에 추가된 열이라 기존 열 배치를 깨지 않도록 맨 끝에 둔다
-GRADE_HEADERS = ["등급", "자동BAD", "훅", "피부증명", "설명", "진정성", "제작품질", "플래그", "근거", "피드백", "평가일시",
-                 "CTA", "언어"]
-CTA = GRADE_HEADERS.index("CTA")
+# A~M열: video_daily_load.py(tiktok_to_sheets.HEADERS)가 쓰는 영상 데이터
+SRC_HEADERS = ["Video ID", "포스팅일(LA)", "크리에이터", "제목", "누적 GMV", "Currency", "SKU Orders", "Units Sold",
+               "Views", "CTR", "Product IDs", "Product Names", "마지막업데이트"]
+# N열~: 평가 결과 (열 이름은 사용자가 정한 평가지표 이름)
+GRADE_HEADERS = ["등급", "훅", "얼굴 노출", "피부증명", "제품 설명", "개인 스토리텔링", "CTA 여부", "조명", "언어",
+                 "자동BAD 사유", "플래그", "근거", "피드백", "평가일시"]
+# 등급 계산에 쓰는 YES/NO 요소 (SKILL.md 2단계)
+YN_COLS = ["훅", "피부증명", "제품 설명", "개인 스토리텔링", "CTA 여부"]
+# 2026-10-24 이전 배치(--fix-header가 새 배치로 옮김)
+OLD_GRADE_HEADERS = ["등급", "자동BAD", "훅", "피부증명", "설명", "진정성", "제작품질", "플래그", "근거", "피드백", "평가일시",
+                     "CTA", "언어"]
+OLD_TO_NEW = {"자동BAD": "자동BAD 사유", "설명": "제품 설명", "진정성": "개인 스토리텔링", "제작품질": "조명", "CTA": "CTA 여부"}
 
 # 판매 성과는 등급 근거가 아니므로(SKILL.md) 모델에 넘기지 않는다
 DROP_FIELDS = {"ad_spend", "commission", "cpa", "ctr", "gmv", "orders", "roi", "units_sold", "view_count",
@@ -247,14 +255,12 @@ def main():
     ap.add_argument("--model", default=MODEL, choices=sorted(PRICE))
     ap.add_argument("--show-header", action="store_true", help="1행 헤더만 표시하고 종료")
     ap.add_argument("--diagnose", action="store_true", help="헤더 행 위치·중복 영상·평가 행 진단 (시트 안 바꿈)")
+    ap.add_argument("--fix-header", action="store_true",
+                    help="1행 헤더 복원 + 평가 열을 새 배치로 이동 (--apply 없으면 계획만 표시)")
+    ap.add_argument("--apply", action="store_true")
     ap.add_argument("--compare", type=int, default=0,
                     help="이미 [영상]으로 평가된 행 N개를 --model로 다시 평가해 일치율만 표시 (시트에 쓰지 않음)")
     a = ap.parse_args()
-
-    cruva_key = os.environ.get("CRUVA_API_KEY", "").strip()
-    if not cruva_key:
-        print("❌ CRUVA_API_KEY 환경변수가 없음 (GitHub secret 등록 필요)")
-        sys.exit(1)
 
     ws = open_sheet(a.sheet_id)
     values = ws.get_all_values()
@@ -265,42 +271,53 @@ def main():
     if a.show_header:
         notice(f"시트 '{ws.title}' {len(values) - 1}행 | 1행: " + " | ".join(f"{col_letter(i + 1)}={h or '(빈칸)'}" for i, h in enumerate(header)))
         return
-    # 평가 열이 없으면 기존 헤더 오른쪽에 추가 (기존 열은 건드리지 않음)
-    if GRADE_HEADERS[0] not in header:
-        ws.update(range_name=f"{col_letter(len(header) + 1)}1", values=[GRADE_HEADERS])
-        header = header + GRADE_HEADERS
-    g0 = header.index(GRADE_HEADERS[0])
-    for k, name in enumerate(GRADE_HEADERS):  # 나중에 추가된 열(CTA·언어) 헤더가 없으면 제자리에 추가
-        if name not in header:
-            ws.update(range_name=f"{col_letter(g0 + k + 1)}1", values=[[name]])
-            header = header[:g0 + k] + [""] * max(0, g0 + k - len(header)) + [name] + header[g0 + k + 1:]
-    notice(f"평가 열 위치: '{GRADE_HEADERS[0]}' = {col_letter(g0 + 1)}열 ~ '{GRADE_HEADERS[-1]}' = {col_letter(g0 + len(GRADE_HEADERS))}열")
+    if a.fix_header:
+        fix_header(ws, values, a.apply)
+        return
 
+    # 1행이 헤더가 아니면(정렬 등으로 밀림) 데이터 행을 헤더로 오인하지 않게 멈춘다
+    if header[:1] != SRC_HEADERS[:1]:
+        notice("❌ 1행이 헤더가 아님 (A1이 'Video ID'가 아님) — --fix-header로 먼저 복원")
+        sys.exit(1)
+    g0 = len(SRC_HEADERS)
+    if header[g0:g0 + len(GRADE_HEADERS)] != GRADE_HEADERS:
+        if any(h.strip() for h in header[g0:]):
+            notice(f"❌ 평가 열 헤더가 예상과 다름: {header[g0:]} — --fix-header로 정리")
+            sys.exit(1)
+        ws.update(range_name=f"{col_letter(g0 + 1)}1", values=[GRADE_HEADERS])
+    C = {name: g0 + k for k, name in enumerate(GRADE_HEADERS)}
+
+    def cell(r, name):
+        return r[C[name]].strip() if len(r) > C[name] else ""
+
+    # 이미 기록된 행도 규칙과 어긋나면 등급만 바로잡는다 (CTA 여부가 빈 행은 4요소 시절 평가라 제외)
     fixes = []
     for i, r in enumerate(values[1:], start=2):
-        r = r + [""] * (len(header) - len(r))
-        cur = r[g0].strip()
-        # CTA가 빈 행은 CTA 추가 전(4요소)에 평가한 행이라 건드리지 않는다
-        if cur in ("GOOD", "OK", "BAD") and r[g0 + CTA].strip():
-            want = rule_grade(r[g0 + 1].strip(), [x.strip() for x in r[g0 + 2:g0 + 6]] + [r[g0 + CTA].strip()],
-                              r[g0 + 6].strip())
+        cur = cell(r, "등급")
+        if cur in ("GOOD", "OK", "BAD") and cell(r, "CTA 여부"):
+            want = rule_grade(cell(r, "자동BAD 사유"), [cell(r, c) for c in YN_COLS], cell(r, "조명"))
             if want != cur:
-                fixes.append({"range": f"{col_letter(g0 + 1)}{i}", "values": [[want]]})
-                fixes.append({"range": f"{col_letter(g0 + 10)}{i}",
-                              "values": [[f"[등급 규칙 보정: {cur}→{want}] {r[g0 + 9]}"]]})
+                fixes.append({"range": f"{col_letter(C['등급'] + 1)}{i}", "values": [[want]]})
+                fixes.append({"range": f"{col_letter(C['피드백'] + 1)}{i}",
+                              "values": [[f"[등급 규칙 보정: {cur}→{want}] {cell(r, '피드백')}"]]})
     if fixes:
         ws.batch_update(fixes)
         notice(f"기존 행 등급 규칙 보정 {len(fixes) // 2}건")
 
     if a.compare:
-        compare(a, ws, values, header, g0)
+        compare(a, values, cell)
         return
+
+    cruva_key = os.environ.get("CRUVA_API_KEY", "").strip()
+    if not cruva_key:
+        print("❌ CRUVA_API_KEY 환경변수가 없음 (GitHub secret 등록 필요)")
+        sys.exit(1)
 
     todo = []
     for i, r in enumerate(values[1:], start=2):
-        r = r + [""] * (len(header) - len(r))
+        r = r + [""] * (len(SRC_HEADERS) - len(r))
         vid = r[0].strip().lstrip("'")
-        if not vid or r[g0].strip() or (a.date and not r[1].startswith(a.date)):
+        if not vid or cell(r, "등급") or (a.date and not r[1].startswith(a.date)):
             continue
         todo.append({"row": i, "video_id": vid, "handle": r[2].strip().lstrip("@"),
                      "date": r[1][:10], "products": r[11]})
@@ -342,14 +359,12 @@ def main():
         whisper = WhisperModel("small", device="cpu", compute_type="int8")
 
     for n, row in enumerate(todo, 1):
-        if row["via"] == "na":
-            result = ["N/A", "", "", "", "", "", "", "", "CRUVA에 영상 없음(삭제·비공개 등)", ""]
-            stats["N/A"] += 1
-        elif row["via"] == "wait":
+        if row["via"] == "wait":
             stats["분석대기"] += 1  # CRUVA 분석 없음 → 비워 둠
             continue
-        elif row["via"] == "video" and row["video_id"] not in mp4s:
-            result = ["N/A", "", "", "", "", "", "", "", "영상 다운로드 불가(삭제·비공개 등)", ""]
+        if row["via"] == "na" or (row["via"] == "video" and row["video_id"] not in mp4s):
+            out = {"등급": "N/A", "근거": "영상 다운로드 불가(삭제·비공개 등)" if row["via"] == "video"
+                   else "CRUVA에 영상 없음(삭제·비공개 등)"}
             stats["N/A"] += 1
         else:
             if row["via"] == "video":
@@ -361,24 +376,83 @@ def main():
             if g is None:
                 stats["실패"] += 1
                 continue
-            # 등급은 모델 판단 대신 체크리스트로 계산 (모델이 규칙을 어기는 경우가 있음)
-            final = rule_grade(g.gate, [g.hook, g.proof_on_skin, g.explanation, g.authenticity, g.cta], g.production)
-            feedback = g.feedback if final == g.grade else f"[등급 규칙 보정: {g.grade}→{final}] {g.feedback}"
-            result = [final, g.gate or "", g.hook, g.proof_on_skin, g.explanation, g.authenticity,
-                      g.production, ", ".join(g.flags), f"[{'영상' if row['via'] == 'video' else 'CRUVA'}] {g.evidence}", feedback]
-            stats[final] += 1
-            result += [None, g.cta, g.language]  # None = 평가일시 자리
-        if len(result) == 10:
-            result += [None, "", ""]
-        result[10] = datetime.now(timezone(timedelta(hours=9))).strftime("%Y-%m-%d %H:%M")
+            out = grade_to_cells(g, "영상" if row["via"] == "video" else "CRUVA")
+            stats[out["등급"]] += 1
+        out["평가일시"] = datetime.now(timezone(timedelta(hours=9))).strftime("%Y-%m-%d %H:%M")
+        line = [out.get(h, "") for h in GRADE_HEADERS]
         rng = f"{col_letter(g0 + 1)}{row['row']}:{col_letter(g0 + len(GRADE_HEADERS))}{row['row']}"
-        ws.update(range_name=rng, values=[result])
-        print(f"  [{n}/{len(todo)}] {row['video_id']} → {result[0]}")
+        ws.update(range_name=rng, values=[line], value_input_option="RAW")
+        print(f"  [{n}/{len(todo)}] {row['video_id']} → {out['등급']}")
         if a.limit and a.limit <= 20 and n <= 6:  # 시범 실행은 결과를 요약에도 남김 (요약은 단계당 10개까지만 보임)
-            notice(f"@{row['handle']} {row['video_id']} [{row['via']}] → {result[0]} {result[1]} | 훅 {result[2]}·피부 {result[3]}·설명 {result[4]}·진정성 {result[5]}·CTA {result[11]}·제작 {result[6]} | {result[12]} | {result[7]} | {result[9][:150]}")
+            notice(f"@{row['handle']} [{row['via']}] → {out['등급']} | "
+                   + "·".join(f"{h} {out.get(h, '')}" for h in ["훅", "얼굴 노출", "피부증명", "제품 설명", "개인 스토리텔링", "CTA 여부", "조명", "언어"])
+                   + f" | {out.get('피드백', '')[:120]}")
 
     notice("결과 " + " / ".join(f"{k} {v}" for k, v in stats.items()))
     report_usage(a.model)
+
+
+def grade_to_cells(g: Grade, via: str) -> dict:
+    # 등급은 모델 판단 대신 체크리스트로 계산 (모델이 규칙을 어기는 경우가 있음)
+    yn = {"훅": g.hook, "피부증명": g.proof_on_skin, "제품 설명": g.explanation,
+          "개인 스토리텔링": g.authenticity, "CTA 여부": g.cta}
+    final = rule_grade(g.gate, [yn[c] for c in YN_COLS], g.production)
+    return {
+        "등급": final, **yn,
+        "얼굴 노출": "NO" if g.gate == "PRODUCT_ONLY" else "YES",
+        "조명": g.production, "언어": g.language, "자동BAD 사유": g.gate or "",
+        "플래그": ", ".join(g.flags), "근거": f"[{via}] {g.evidence}",
+        "피드백": g.feedback if final == g.grade else f"[등급 규칙 보정: {g.grade}→{final}] {g.feedback}",
+    }
+
+
+def fix_header(ws, values, apply: bool):
+    """1행을 헤더로 복원하고 평가 열을 새 배치(GRADE_HEADERS)로 옮긴다.
+    1행이 데이터인 경우: 같은 Video ID가 아래에 또 있을 때만(중복) 1행을 헤더로 덮어쓴다."""
+    g0 = len(SRC_HEADERS)
+    row1 = values[0]
+    vid1 = (row1[0] if row1 else "").strip().lstrip("'")
+    others = {(r[0] if r else "").strip().lstrip("'"): i for i, r in enumerate(values[1:], start=2)}
+    if row1[:1] == SRC_HEADERS[:1]:
+        plan = "1행은 이미 헤더 → 헤더 이름만 갱신"
+    elif vid1.isdigit() and vid1 in others:
+        plan = f"1행(@{row1[2]})은 {others[vid1]}행과 같은 영상의 중복 → 1행을 헤더로 덮어씀"
+    else:
+        notice(f"❌ 1행이 헤더도 중복 영상도 아님 ({row1[:3]}) — 자동으로 고치지 않음")
+        sys.exit(1)
+
+    # 기존 평가 열 이름(1행 N열~)으로 위치를 찾아 새 배치로 옮긴다
+    old = {h.strip(): g0 + k for k, h in enumerate(row1[g0:]) if h.strip()}
+    old = {OLD_TO_NEW.get(h, h): c for h, c in old.items()}
+    moved, block = 0, []
+    for r in values[1:]:
+        r = r + [""] * (g0 + 30 - len(r))
+        line = [r[old[h]] if h in old else "" for h in GRADE_HEADERS]
+        if line[0] in ("GOOD", "OK", "BAD"):
+            line[GRADE_HEADERS.index("얼굴 노출")] = "NO" if line[GRADE_HEADERS.index("자동BAD 사유")] == "PRODUCT_ONLY" else "YES"
+        if any(line):
+            moved += 1
+        block.append(line)
+    width = max(len(r) for r in values)
+    notice(f"[계획] {plan} / 평가 열 {len(old)}개 → 새 배치 {len(GRADE_HEADERS)}개 / 평가 데이터 있는 행 {moved}개 이동 / "
+           f"기존 사용 열 ~{col_letter(width)}")
+    sample = next((l for l in block if l[0] in ("GOOD", "OK", "BAD")), None)
+    if sample:
+        notice("[계획] 첫 평가 행 예시: " + " | ".join(f"{h}={v[:20]}" for h, v in zip(GRADE_HEADERS, sample)))
+    if not apply:
+        notice("[계획만 표시] --apply로 실행")
+        return
+
+    backup = f"{ws.title}_백업_{datetime.now(timezone(timedelta(hours=9))).strftime('%m%d_%H%M')}"
+    ws.duplicate(new_sheet_name=backup)
+    notice(f"백업 탭 생성: {backup}")
+    end_col = col_letter(max(width, g0 + len(GRADE_HEADERS)))
+    pad = max(width, g0 + len(GRADE_HEADERS)) - g0 - len(GRADE_HEADERS)
+    ws.update(range_name=f"A1:{end_col}1", values=[SRC_HEADERS + GRADE_HEADERS + [""] * pad], value_input_option="RAW")
+    ws.update(range_name=f"{col_letter(g0 + 1)}2:{end_col}{len(values)}",
+              values=[l + [""] * pad for l in block], value_input_option="RAW")
+    ws.freeze(rows=1)
+    notice(f"완료: 1행 헤더 복원, 평가 열 {moved}행 이동, 1행 고정")
 
 
 def diagnose(values):
@@ -408,14 +482,14 @@ def report_usage(model: str):
     notice(f"Claude 사용량({model}): 입력 {USAGE['in']:,} / 캐시 {USAGE['cache']:,} / 출력 {USAGE['out']:,} 토큰 ≈ ${usd:.3f}")
 
 
-def compare(a, ws, values, header, g0):
+def compare(a, values, cell):
     """기존 평가(시트)와 --model 재평가를 비교. 시트에는 쓰지 않는다."""
+    names = ["등급"] + YN_COLS + ["조명"]
     rows = []
     for i, r in enumerate(values[1:], start=2):
-        r = r + [""] * (len(header) - len(r))
-        if r[g0] in ("GOOD", "OK", "BAD") and r[g0 + 8].startswith("[영상]") and r[g0 + CTA].strip():
+        if cell(r, "등급") in ("GOOD", "OK", "BAD") and cell(r, "근거").startswith("[영상]") and cell(r, "CTA 여부"):
             rows.append({"row": i, "video_id": r[0].strip().lstrip("'"), "handle": r[2].strip().lstrip("@"),
-                         "products": r[11], "old": [r[g0]] + [x.strip() for x in r[g0 + 2:g0 + 7]] + [r[g0 + CTA].strip()]})
+                         "products": r[11], "old": [cell(r, h) for h in names]})
     rows = rows[:a.compare]
     tmp = tempfile.mkdtemp()
     mp4s, cost = apify_download(rows, tmp)
@@ -423,8 +497,7 @@ def compare(a, ws, values, header, g0):
     whisper = WhisperModel("small", device="cpu", compute_type="int8")
     client = anthropic.Anthropic()
     system = open(SKILL_PATH, encoding="utf-8").read()
-    names = ["등급", "훅", "피부", "설명", "진정성", "제작", "CTA"]
-    same = [0] * 7
+    same = [0] * len(names)
     diffs, n = [], 0
     for row in rows:
         if row["video_id"] not in mp4s:
@@ -433,15 +506,15 @@ def compare(a, ws, values, header, g0):
         g = grade(client, system, row, inputs, a.model)
         if g is None:
             continue
-        new = [rule_grade(g.gate, [g.hook, g.proof_on_skin, g.explanation, g.authenticity, g.cta], g.production),
-               g.hook, g.proof_on_skin, g.explanation, g.authenticity, g.production, g.cta]
+        out = grade_to_cells(g, "영상")
+        new = [out[h] for h in names]
         n += 1
-        for k in range(7):
+        for k in range(len(names)):
             same[k] += new[k] == row["old"][k]
         if new[0] != row["old"][0]:
             diffs.append(f"@{row['handle']} 기존 {row['old'][0]}→{new[0]} ("
-                         + ", ".join(f"{names[k]} {row['old'][k]}→{new[k]}" for k in range(1, 7) if new[k] != row["old"][k]) + ")")
-    notice(f"비교 {n}건 일치율: " + " / ".join(f"{names[k]} {same[k]}/{n}" for k in range(7)))
+                         + ", ".join(f"{names[k]} {row['old'][k]}→{new[k]}" for k in range(1, len(names)) if new[k] != row["old"][k]) + ")")
+    notice(f"비교 {n}건 일치율: " + " / ".join(f"{names[k]} {same[k]}/{n}" for k in range(len(names))))
     for d in diffs[:6]:
         notice("등급 다름: " + d)
     report_usage(a.model)

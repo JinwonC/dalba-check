@@ -86,6 +86,10 @@ def load_day(day: str, spreadsheet_id: str):
     if not existing:
         sheet.append_row(HEADERS)
         existing = [HEADERS]
+    # 정렬 등으로 1행 헤더가 밀리면 1행 데이터를 헤더로 오인해 중복 추가하게 되므로 멈춘다
+    if str(existing[0][0]).strip() != HEADERS[0]:
+        print(f"::error::1행이 헤더가 아님 (A1='{existing[0][0]}') — 1행에 헤더를 복원한 뒤 다시 실행")
+        sys.exit(1)
     index = {str(r[0]).strip().lstrip("'"): i for i, r in enumerate(existing[1:], start=2) if r and r[0]}
 
     col_end = chr(ord("A") + len(HEADERS) - 1)
