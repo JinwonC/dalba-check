@@ -131,6 +131,25 @@ def analyzed(v: dict) -> bool:
     return bool(v.get("transcript") or v.get("on_screen_text") or v.get("content_overview"))
 
 
+def _field(obj, camel: str):
+    """apify-client 버전에 따라 dict 또는 모델 객체로 온다 → 둘 다 지원"""
+    if obj is None:
+        return None
+    if isinstance(obj, dict):
+        return obj.get(camel)
+    snake = "".join("_" + c.lower() if c.isupper() else c for c in camel)
+    return getattr(obj, snake, getattr(obj, camel, None))
+
+
+def _plain(it):
+    if isinstance(it, dict):
+        return it
+    for m in ("model_dump", "dict"):
+        if hasattr(it, m):
+            return getattr(it, m)(by_alias=True)
+    return dict(it)
+
+
 def apify_download(rows: list[dict], out_dir: str) -> tuple[dict[str, str], float]:
     """Apify 한 번 실행으로 여러 영상을 받는다 → ({video_id: mp4 경로}, 실행 비용 USD)"""
     from apify_client import ApifyClient
@@ -144,8 +163,8 @@ def apify_download(rows: list[dict], out_dir: str) -> tuple[dict[str, str], floa
         "postURLs": urls, "shouldDownloadVideos": True, "shouldDownloadCovers": False,
         "shouldDownloadSubtitles": False, "resultsPerPage": 1,
     })
-    items = ac.dataset(run["defaultDatasetId"]).list_items().items
-    cost = float((ac.run(run["id"]).get() or {}).get("usageTotalUsd") or 0)
+    items = [_plain(it) for it in ac.dataset(_field(run, "defaultDatasetId")).list_items().items]
+    cost = float(_field(ac.run(_field(run, "id")).get(), "usageTotalUsd") or 0)
     paths = {}
     for it in items:
         vid = str(it.get("id") or "")
