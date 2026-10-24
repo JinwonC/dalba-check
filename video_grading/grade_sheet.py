@@ -211,6 +211,8 @@ def main():
         rng = f"{col_letter(g0 + 1)}{row['row']}:{col_letter(g0 + len(GRADE_HEADERS))}{row['row']}"
         ws.update(range_name=rng, values=[result])
         print(f"  [{n}/{len(todo)}] {row['video_id']} → {result[0]}")
+        if a.limit and a.limit <= 20:  # 시범 실행은 결과를 요약에도 남김
+            notice(f"@{row['handle']} {row['video_id']} → {result[0]} {result[1]} | 훅 {result[2]}·피부 {result[3]}·설명 {result[4]}·진정성 {result[5]}·제작 {result[6]} | {result[7]} | {result[9][:150]}")
 
     notice("결과 " + " / ".join(f"{k} {v}" for k, v in stats.items()))
 
