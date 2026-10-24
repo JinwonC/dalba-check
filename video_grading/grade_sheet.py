@@ -23,7 +23,7 @@ import anthropic
 import gspread
 import requests
 from google.oauth2.service_account import Credentials
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
@@ -41,8 +41,9 @@ CRUVA_SHOP_ID = "69b9712fd9c02f34547155d5"  # CRUVA 내부 US 스토어 ID
 CRUVA_PAGE_SIZE = 100
 APIFY_ACTOR = "clockworks/tiktok-scraper"
 
-# CTA는 나중에 추가된 요소라 기존 열 배치를 깨지 않도록 맨 끝에 둔다
-GRADE_HEADERS = ["등급", "자동BAD", "훅", "피부증명", "설명", "진정성", "제작품질", "플래그", "근거", "피드백", "평가일시", "CTA"]
+# CTA·언어는 나중에 추가된 열이라 기존 열 배치를 깨지 않도록 맨 끝에 둔다
+GRADE_HEADERS = ["등급", "자동BAD", "훅", "피부증명", "설명", "진정성", "제작품질", "플래그", "근거", "피드백", "평가일시",
+                 "CTA", "언어"]
 CTA = GRADE_HEADERS.index("CTA")
 
 # 판매 성과는 등급 근거가 아니므로(SKILL.md) 모델에 넘기지 않는다
@@ -81,6 +82,7 @@ class Grade(BaseModel):
     explanation: YN
     authenticity: YN
     cta: YN
+    language: str = Field(description="크리에이터가 영상에서 쓰는 언어(대본·자막 기준)를 한국어로. 예: 영어, 스페인어, 영어+스페인어")
     production: Literal["GOOD", "BAD"]
     grade: Literal["GOOD", "OK", "BAD"]
     flags: List[Literal["CLAIM", "MISINFO", "NON_EN", "PROFANITY", "LONG"]]
@@ -260,9 +262,10 @@ def main():
         ws.update(range_name=f"{col_letter(len(header) + 1)}1", values=[GRADE_HEADERS])
         header = header + GRADE_HEADERS
     g0 = header.index(GRADE_HEADERS[0])
-    if "CTA" not in header:  # CTA 추가 전에 만든 시트: 평가일시 다음 칸에 CTA 헤더만 추가
-        ws.update(range_name=f"{col_letter(g0 + CTA + 1)}1", values=[["CTA"]])
-        header = header[:g0 + CTA] + [""] * max(0, g0 + CTA - len(header)) + ["CTA"]
+    for k, name in enumerate(GRADE_HEADERS):  # 나중에 추가된 열(CTA·언어) 헤더가 없으면 제자리에 추가
+        if name not in header:
+            ws.update(range_name=f"{col_letter(g0 + k + 1)}1", values=[[name]])
+            header = header[:g0 + k] + [""] * max(0, g0 + k - len(header)) + [name] + header[g0 + k + 1:]
     notice(f"평가 열 위치: '{GRADE_HEADERS[0]}' = {col_letter(g0 + 1)}열 ~ '{GRADE_HEADERS[-1]}' = {col_letter(g0 + len(GRADE_HEADERS))}열")
 
     fixes = []
@@ -356,16 +359,15 @@ def main():
             result = [final, g.gate or "", g.hook, g.proof_on_skin, g.explanation, g.authenticity,
                       g.production, ", ".join(g.flags), f"[{'영상' if row['via'] == 'video' else 'CRUVA'}] {g.evidence}", feedback]
             stats[final] += 1
-            result.append(None)  # 평가일시 자리
-            result.append(g.cta)
+            result += [None, g.cta, g.language]  # None = 평가일시 자리
         if len(result) == 10:
-            result += [None, ""]
+            result += [None, "", ""]
         result[10] = datetime.now(timezone(timedelta(hours=9))).strftime("%Y-%m-%d %H:%M")
         rng = f"{col_letter(g0 + 1)}{row['row']}:{col_letter(g0 + len(GRADE_HEADERS))}{row['row']}"
         ws.update(range_name=rng, values=[result])
         print(f"  [{n}/{len(todo)}] {row['video_id']} → {result[0]}")
         if a.limit and a.limit <= 20 and n <= 6:  # 시범 실행은 결과를 요약에도 남김 (요약은 단계당 10개까지만 보임)
-            notice(f"@{row['handle']} {row['video_id']} [{row['via']}] → {result[0]} {result[1]} | 훅 {result[2]}·피부 {result[3]}·설명 {result[4]}·진정성 {result[5]}·CTA {result[11]}·제작 {result[6]} | {result[7]} | {result[9][:150]}")
+            notice(f"@{row['handle']} {row['video_id']} [{row['via']}] → {result[0]} {result[1]} | 훅 {result[2]}·피부 {result[3]}·설명 {result[4]}·진정성 {result[5]}·CTA {result[11]}·제작 {result[6]} | {result[12]} | {result[7]} | {result[9][:150]}")
 
     notice("결과 " + " / ".join(f"{k} {v}" for k, v in stats.items()))
     report_usage(a.model)
