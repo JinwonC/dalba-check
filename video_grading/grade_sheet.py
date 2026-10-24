@@ -246,6 +246,7 @@ def main():
     ap.add_argument("--source", choices=["auto", "cruva", "video"], default="auto")
     ap.add_argument("--model", default=MODEL, choices=sorted(PRICE))
     ap.add_argument("--show-header", action="store_true", help="1행 헤더만 표시하고 종료")
+    ap.add_argument("--diagnose", action="store_true", help="헤더 행 위치·중복 영상·평가 행 진단 (시트 안 바꿈)")
     ap.add_argument("--compare", type=int, default=0,
                     help="이미 [영상]으로 평가된 행 N개를 --model로 다시 평가해 일치율만 표시 (시트에 쓰지 않음)")
     a = ap.parse_args()
@@ -258,6 +259,9 @@ def main():
     ws = open_sheet(a.sheet_id)
     values = ws.get_all_values()
     header = values[0]
+    if a.diagnose:
+        diagnose(values)
+        return
     if a.show_header:
         notice(f"시트 '{ws.title}' {len(values) - 1}행 | 1행: " + " | ".join(f"{col_letter(i + 1)}={h or '(빈칸)'}" for i, h in enumerate(header)))
         return
@@ -375,6 +379,27 @@ def main():
 
     notice("결과 " + " / ".join(f"{k} {v}" for k, v in stats.items()))
     report_usage(a.model)
+
+
+def diagnose(values):
+    hdr = [i + 1 for i, r in enumerate(values) if r and r[0].strip() == "Video ID"]
+    notice(f"전체 {len(values)}행 / 'Video ID' 헤더 행 위치: {hdr or '없음'} / 1행 A~C: {values[0][:3]}")
+    seen, dups = {}, []
+    for i, r in enumerate(values, start=1):
+        vid = (r[0] if r else "").strip().lstrip("'")
+        if vid.isdigit():
+            if vid in seen:
+                dups.append(f"{vid}(@{r[2]}) {seen[vid]}행·{i}행")
+            else:
+                seen[vid] = i
+    notice(f"중복 Video ID {len(dups)}건: {dups[:5]}")
+    g0 = values[0].index("등급") if "등급" in values[0] else None
+    if g0 is not None:
+        graded = [(i, r) for i, r in enumerate(values, start=1) if len(r) > g0 and r[g0] in ("GOOD", "OK", "BAD", "N/A")]
+        notice(f"평가된 행 {len(graded)}개, 행 번호 {graded[0][0] if graded else '-'}~{graded[-1][0] if graded else '-'}")
+        notice("평가 행 확인(크리에이터→등급): " + ", ".join(f"{i}행 @{r[2]}→{r[g0]}" for i, r in graded[:40])[:3500])
+    tail = values[-1][:3] if values else []
+    notice(f"마지막 행 A~C: {tail}")
 
 
 def report_usage(model: str):
