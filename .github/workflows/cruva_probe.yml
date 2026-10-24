@@ -16,12 +16,16 @@ jobs:
           echo "::notice::ANTHROPIC_API_KEY 확인: HTTP $code"
           code=$(curl -s -o /dev/null -w '%{http_code}' -X POST https://api.cruva.com/affiliate/videos/list -H "Content-Type: application/json" -H "x-api-key: $CRUVA_API_KEY" -H "x-shop-id: 69b9712fd9c02f34547155d5" -d '{"page":1,"page_size":1}')
           echo "::notice::CRUVA_API_KEY 확인: HTTP $code"
-      - name: Find download endpoint in public docs
+      - name: List video endpoints from openapi.json
         run: |
-          for u in https://cruva.com/docs/api https://api.cruva.com/openapi.json https://api.cruva.com/docs/openapi.json https://cruva.com/docs/api/openapi.json https://api.cruva.com/swagger.json; do
-            code=$(curl -sL -o page.txt -w '%{http_code}' "$u")
-            n=$(wc -c < page.txt)
-            hits=$(grep -oiE '/[a-z0-9_/{}-]*download[a-z0-9_/{}-]*' page.txt | sort -u | head -10 | tr '\n' ' ')
-            specs=$(grep -oiE '[a-z0-9:/._-]*(openapi|swagger|spec)[a-z0-9._-]*\.json' page.txt | sort -u | head -5 | tr '\n' ' ')
-            echo "::notice::$u → HTTP $code, ${n}B | download: ${hits:-없음} | spec: ${specs:-없음}"
-          done
+          curl -sL https://cruva.com/openapi.json -o spec.json
+          python3 - <<'PY'
+          import json
+          spec = json.load(open("spec.json"))
+          for path, ops in spec.get("paths", {}).items():
+              if any(k in path.lower() for k in ("video", "download", "media")):
+                  for m, op in ops.items():
+                      if not isinstance(op, dict): continue
+                      body = json.dumps(op.get("requestBody", {}))[:150]
+                      print(f"::notice::{m.upper()} {path} — {op.get('summary','')} | {body}")
+          PY
