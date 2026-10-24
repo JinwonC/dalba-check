@@ -15,6 +15,10 @@ on:
         description: '최대 평가 개수 (0 = 전부)'
         required: false
         default: '5'
+      source:
+        description: 'auto = CRUVA 분석 있으면 CRUVA, 없으면 Apify 영상 / cruva / video'
+        required: false
+        default: 'auto'
 
 jobs:
   grade:
@@ -34,7 +38,7 @@ jobs:
           python-version: '3.11'
 
       - name: Install dependencies
-        run: pip install gspread google-auth anthropic pydantic requests
+        run: pip install gspread google-auth anthropic pydantic requests apify-client imageio-ffmpeg pillow faster-whisper
 
       - name: Write secret files
         run: echo '${{ secrets.SERVICE_ACCOUNT_JSON }}' > service_account.json
@@ -43,7 +47,8 @@ jobs:
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           CRUVA_API_KEY: ${{ secrets.CRUVA_API_KEY }}
+          APIFY_TOKEN: ${{ secrets.APIFY_TOKEN }}
         run: |
-          ARGS="--sheet-id ${{ github.event.inputs.spreadsheet_id }} --limit ${{ github.event.inputs.limit }}"
+          ARGS="--sheet-id ${{ github.event.inputs.spreadsheet_id }} --limit ${{ github.event.inputs.limit }} --source ${{ github.event.inputs.source }}"
           if [ -n "${{ github.event.inputs.post_date }}" ]; then ARGS="$ARGS --date ${{ github.event.inputs.post_date }}"; fi
           python video_grading/grade_sheet.py $ARGS
