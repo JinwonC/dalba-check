@@ -79,6 +79,16 @@ class Grade(BaseModel):
     feedback: str
 
 
+def rule_grade(gate, yn: list[str], production: str) -> str:
+    """SKILL.md 3단계 규칙: 자동 BAD 또는 YES 1개 이하 → BAD / 4개 YES+제작 양호 → GOOD / 나머지 → OK"""
+    yes = sum(v == "YES" for v in yn)
+    if gate or yes <= 1:
+        return "BAD"
+    if yes == 4 and production == "GOOD":
+        return "GOOD"
+    return "OK"
+
+
 def notice(msg: str):
     # Actions 로그는 이 세션에서 못 읽으므로 요약(annotation)으로도 남긴다
     print(f"::notice::{msg}")
@@ -240,6 +250,20 @@ def main():
     g0 = header.index(GRADE_HEADERS[0])
     notice(f"평가 열 위치: '{GRADE_HEADERS[0]}' = {col_letter(g0 + 1)}열 ~ '{GRADE_HEADERS[-1]}' = {col_letter(g0 + len(GRADE_HEADERS))}열")
 
+    fixes = []
+    for i, r in enumerate(values[1:], start=2):
+        r = r + [""] * (len(header) - len(r))
+        cur = r[g0].strip()
+        if cur in ("GOOD", "OK", "BAD"):
+            want = rule_grade(r[g0 + 1].strip(), [x.strip() for x in r[g0 + 2:g0 + 6]], r[g0 + 6].strip())
+            if want != cur:
+                fixes.append({"range": f"{col_letter(g0 + 1)}{i}", "values": [[want]]})
+                fixes.append({"range": f"{col_letter(g0 + 10)}{i}",
+                              "values": [[f"[등급 규칙 보정: {cur}→{want}] {r[g0 + 9]}"]]})
+    if fixes:
+        ws.batch_update(fixes)
+        notice(f"기존 행 등급 규칙 보정 {len(fixes) // 2}건")
+
     todo = []
     for i, r in enumerate(values[1:], start=2):
         r = r + [""] * (len(header) - len(r))
@@ -305,9 +329,12 @@ def main():
             if g is None:
                 stats["실패"] += 1
                 continue
-            result = [g.grade, g.gate or "", g.hook, g.proof_on_skin, g.explanation, g.authenticity,
-                      g.production, ", ".join(g.flags), f"[{'영상' if row['via'] == 'video' else 'CRUVA'}] {g.evidence}", g.feedback]
-            stats[g.grade] += 1
+            # 등급은 모델 판단 대신 체크리스트로 계산 (모델이 규칙을 어기는 경우가 있음)
+            final = rule_grade(g.gate, [g.hook, g.proof_on_skin, g.explanation, g.authenticity], g.production)
+            feedback = g.feedback if final == g.grade else f"[등급 규칙 보정: {g.grade}→{final}] {g.feedback}"
+            result = [final, g.gate or "", g.hook, g.proof_on_skin, g.explanation, g.authenticity,
+                      g.production, ", ".join(g.flags), f"[{'영상' if row['via'] == 'video' else 'CRUVA'}] {g.evidence}", feedback]
+            stats[final] += 1
         result.append(datetime.now(timezone(timedelta(hours=9))).strftime("%Y-%m-%d %H:%M"))
         rng = f"{col_letter(g0 + 1)}{row['row']}:{col_letter(g0 + len(GRADE_HEADERS))}{row['row']}"
         ws.update(range_name=rng, values=[result])
