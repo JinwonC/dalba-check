@@ -32,7 +32,7 @@ def get_target_sheet(spreadsheet_id: str):
         print(f"  ❌ 시트를 열 수 없음 — 서비스 계정({creds.service_account_email})을 편집자로 공유했는지 확인")
         raise
     sheet = spreadsheet.get_worksheet_by_id(TARGET_GID)
-    print(f"  대상 탭: '{sheet.title}' (gid={TARGET_GID})")
+    print(f"::notice::대상 탭: '{sheet.title}' (gid={TARGET_GID})")
     return sheet
 
 
@@ -76,8 +76,8 @@ def load_day(day: str, spreadsheet_id: str):
             break
         page_token = new_token
 
-    print(f"  포스팅 시각 예시: {sample_times}")
-    print(f"  {day} 포스팅 영상: {len(rows)}건")
+    print(f"::notice::포스팅 시각 예시: {sample_times}")
+    print(f"::notice::{day} 포스팅 영상: {len(rows)}건")
     if not rows:
         return
 
@@ -101,7 +101,7 @@ def load_day(day: str, spreadsheet_id: str):
         _write_with_retry(lambda: sheet.spreadsheet.values_batch_update(body), "기존 업데이트")
     if appends:
         _write_with_retry(lambda: sheet.append_rows(appends, value_input_option="USER_ENTERED"), "신규 추가")
-    print(f"✅ 완료! 업데이트 {len(updates)}건 / 신규 {len(appends)}건")
+    print(f"::notice::완료! 업데이트 {len(updates)}건 / 신규 {len(appends)}건")
 
 
 if __name__ == "__main__":
