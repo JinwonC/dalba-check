@@ -30,6 +30,11 @@ ROOT = os.path.dirname(HERE)
 SKILL_PATH = os.path.join(ROOT, ".claude", "skills", "video-grading", "SKILL.md")
 SERVICE_ACCOUNT_FILE = os.path.join(ROOT, "service_account.json")
 MODEL = "claude-sonnet-5-5"
+PRICE = {  # (입력, 캐시 읽기, 출력) USD per 1M tokens
+    "claude-opus-5-5": (4, 0.2, 20),
+    "claude-sonnet-5-5": (2, 0.2, 10),
+    "claude-haiku-5-5": (0.1, 0.01, 0.5),
+}
 
 CRUVA_API = "https://api.cruva.com/affiliate/videos/list"
 CRUVA_SHOP_ID = "69b9712fd9c02f34547155d5"  # CRUVA 내부 US 스토어 ID
@@ -206,12 +211,12 @@ def video_inputs(mp4: str, out_dir: str, whisper) -> tuple[list, float]:
     ], dur_s
 
 
-def grade(client, system: str, row: dict, inputs: list) -> Grade | None:
+def grade(client, system: str, row: dict, inputs: list, model: str = MODEL) -> Grade | None:
     head = f"video_id: {row['video_id']}\n크리에이터: @{row['handle']}\n제품: {row['products']}"
     content = [{"type": "text", "text": head}, *inputs,
                {"type": "text", "text": "기준서에 따라 평가하라. evidence·feedback은 한국어로 쓴다."}]
     resp = client.messages.parse(
-        model=MODEL,
+        model=model,
         max_tokens=16000,
         system=[{"type": "text", "text": system, "cache_control": {"type": "ephemeral"}}],
         output_config={"effort": "medium"},
@@ -233,6 +238,9 @@ def main():
     ap.add_argument("--limit", type=int, default=0)
     ap.add_argument("--date", default="")
     ap.add_argument("--source", choices=["auto", "cruva", "video"], default="auto")
+    ap.add_argument("--model", default=MODEL, choices=sorted(PRICE))
+    ap.add_argument("--compare", type=int, default=0,
+                    help="이미 [영상]으로 평가된 행 N개를 --model로 다시 평가해 일치율만 표시 (시트에 쓰지 않음)")
     a = ap.parse_args()
 
     cruva_key = os.environ.get("CRUVA_API_KEY", "").strip()
@@ -263,6 +271,10 @@ def main():
     if fixes:
         ws.batch_update(fixes)
         notice(f"기존 행 등급 규칙 보정 {len(fixes) // 2}건")
+
+    if a.compare:
+        compare(a, ws, values, header, g0)
+        return
 
     todo = []
     for i, r in enumerate(values[1:], start=2):
@@ -325,7 +337,7 @@ def main():
             else:
                 data = {k: val for k, val in cruva[row["video_id"]].items() if k not in DROP_FIELDS}
                 inputs = [{"type": "text", "text": "CRUVA 분석 데이터:\n" + json.dumps(data, ensure_ascii=False, indent=1)}]
-            g = grade(client, systems[row["via"]], row, inputs)
+            g = grade(client, systems[row["via"]], row, inputs, a.model)
             if g is None:
                 stats["실패"] += 1
                 continue
@@ -343,9 +355,52 @@ def main():
             notice(f"@{row['handle']} {row['video_id']} [{row['via']}] → {result[0]} {result[1]} | 훅 {result[2]}·피부 {result[3]}·설명 {result[4]}·진정성 {result[5]}·제작 {result[6]} | {result[7]} | {result[9][:150]}")
 
     notice("결과 " + " / ".join(f"{k} {v}" for k, v in stats.items()))
-    # claude-sonnet-5-5: 입력 $2 / 캐시 읽기 $0.2 / 출력 $10 (per 1M tokens)
-    usd = USAGE["in"] * 2e-6 + USAGE["cache"] * 0.2e-6 + USAGE["out"] * 10e-6
-    notice(f"Claude 사용량: 입력 {USAGE['in']:,} / 캐시 {USAGE['cache']:,} / 출력 {USAGE['out']:,} 토큰 ≈ ${usd:.3f}")
+    report_usage(a.model)
+
+
+def report_usage(model: str):
+    pi, pc, po = PRICE[model]
+    usd = (USAGE["in"] * pi + USAGE["cache"] * pc + USAGE["out"] * po) / 1e6
+    notice(f"Claude 사용량({model}): 입력 {USAGE['in']:,} / 캐시 {USAGE['cache']:,} / 출력 {USAGE['out']:,} 토큰 ≈ ${usd:.3f}")
+
+
+def compare(a, ws, values, header, g0):
+    """기존 평가(시트)와 --model 재평가를 비교. 시트에는 쓰지 않는다."""
+    rows = []
+    for i, r in enumerate(values[1:], start=2):
+        r = r + [""] * (len(header) - len(r))
+        if r[g0] in ("GOOD", "OK", "BAD") and r[g0 + 8].startswith("[영상]"):
+            rows.append({"row": i, "video_id": r[0].strip().lstrip("'"), "handle": r[2].strip().lstrip("@"),
+                         "products": r[11], "old": [r[g0]] + [x.strip() for x in r[g0 + 2:g0 + 7]]})
+    rows = rows[:a.compare]
+    tmp = tempfile.mkdtemp()
+    mp4s, cost = apify_download(rows, tmp)
+    from faster_whisper import WhisperModel
+    whisper = WhisperModel("small", device="cpu", compute_type="int8")
+    client = anthropic.Anthropic()
+    system = open(SKILL_PATH, encoding="utf-8").read()
+    names = ["등급", "훅", "피부", "설명", "진정성", "제작"]
+    same = [0] * 6
+    diffs, n = [], 0
+    for row in rows:
+        if row["video_id"] not in mp4s:
+            continue
+        inputs, _ = video_inputs(mp4s[row["video_id"]], os.path.join(tmp, row["video_id"]), whisper)
+        g = grade(client, system, row, inputs, a.model)
+        if g is None:
+            continue
+        new = [rule_grade(g.gate, [g.hook, g.proof_on_skin, g.explanation, g.authenticity], g.production),
+               g.hook, g.proof_on_skin, g.explanation, g.authenticity, g.production]
+        n += 1
+        for k in range(6):
+            same[k] += new[k] == row["old"][k]
+        if new[0] != row["old"][0]:
+            diffs.append(f"@{row['handle']} 기존 {row['old'][0]}→{new[0]} ("
+                         + ", ".join(f"{names[k]} {row['old'][k]}→{new[k]}" for k in range(1, 6) if new[k] != row["old"][k]) + ")")
+    notice(f"비교 {n}건 일치율: " + " / ".join(f"{names[k]} {same[k]}/{n}" for k in range(6)))
+    for d in diffs[:6]:
+        notice("등급 다름: " + d)
+    report_usage(a.model)
 
 
 if __name__ == "__main__":
