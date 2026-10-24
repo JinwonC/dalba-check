@@ -245,6 +245,7 @@ def main():
     ap.add_argument("--date", default="")
     ap.add_argument("--source", choices=["auto", "cruva", "video"], default="auto")
     ap.add_argument("--model", default=MODEL, choices=sorted(PRICE))
+    ap.add_argument("--show-header", action="store_true", help="1행 헤더만 표시하고 종료")
     ap.add_argument("--compare", type=int, default=0,
                     help="이미 [영상]으로 평가된 행 N개를 --model로 다시 평가해 일치율만 표시 (시트에 쓰지 않음)")
     a = ap.parse_args()
@@ -257,6 +258,9 @@ def main():
     ws = open_sheet(a.sheet_id)
     values = ws.get_all_values()
     header = values[0]
+    if a.show_header:
+        notice(f"시트 '{ws.title}' {len(values) - 1}행 | 1행: " + " | ".join(f"{col_letter(i + 1)}={h or '(빈칸)'}" for i, h in enumerate(header)))
+        return
     # 평가 열이 없으면 기존 헤더 오른쪽에 추가 (기존 열은 건드리지 않음)
     if GRADE_HEADERS[0] not in header:
         ws.update(range_name=f"{col_letter(len(header) + 1)}1", values=[GRADE_HEADERS])
