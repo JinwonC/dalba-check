@@ -1,0 +1,6 @@
+# 비밀 파일 (절대 커밋 금지)
+service_account.json
+tokens.json
+ads_tokens.json
+__pycache__/
+*.pyc

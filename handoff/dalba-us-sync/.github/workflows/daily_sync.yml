@@ -1,0 +1,81 @@
+name: Daily US Sync (영상 / SKU / 광고)
+
+on:
+  schedule:
+    - cron: '10 8 * * *'   # 매일 08:10 UTC (한국 17:10, LA 새벽 1:10)
+  workflow_dispatch:
+    inputs:
+      report_date:
+        description: '기준일 (YYYY-MM-DD). 비워두면 LA 기준 어제'
+        required: false
+        default: ''
+
+concurrency:
+  group: daily-us-sync      # 같은 시트에 동시 쓰기 방지
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    env:
+      TIKTOK_APP_KEY: ${{ secrets.TIKTOK_APP_KEY }}
+      TIKTOK_APP_SECRET: ${{ secrets.TIKTOK_APP_SECRET }}
+      TIKTOK_SHOP_CIPHER: ${{ secrets.TIKTOK_SHOP_CIPHER }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Write secret files
+        run: |
+          echo '${{ secrets.SERVICE_ACCOUNT_JSON }}' > service_account.json
+          echo '${{ secrets.TOKENS_JSON }}' > tokens.json
+          echo '${{ secrets.ADS_TOKENS_JSON }}' > ads_tokens.json
+
+      - name: Compute dates (LA time)
+        id: date
+        run: |
+          if [ -n "${{ github.event.inputs.report_date }}" ]; then E="${{ github.event.inputs.report_date }}"
+          else E=$(TZ='America/Los_Angeles' date -d 'yesterday' '+%Y-%m-%d'); fi
+          S=$(date -d "$E -3 days" '+%Y-%m-%d')
+          echo "end=$E" >> $GITHUB_OUTPUT
+          echo "start=$S" >> $GITHUB_OUTPUT
+          echo "::notice::window $S ~ $E"
+
+      # SKU: 확정이 ~1일 늦으므로 최근 4일 재조회 + 날짜 단위 교체(UPSERT)
+      - name: SKU 성과 (최근 4일 upsert)
+        if: ${{ !cancelled() }}
+        run: |
+          for i in 1 2 3; do
+            python sku_perf.py "${{ steps.date.outputs.start }} ~ ${{ steps.date.outputs.end }}" && exit 0
+            echo "::warning::sku_perf.py 실패 (${i}/3), 30초 후 재시도"; sleep 30
+          done
+          echo "::error::sku_perf.py 3회 실패"; exit 1
+
+      # 광고: 새벽엔 전날 데이터가 0행일 수 있어 최근 4일 조회 → 빠진 날짜만 추가
+      - name: GMV MAX 광고 (최근 4일, 빠진 날짜만 추가)
+        if: ${{ !cancelled() }}
+        run: |
+          for i in 1 2 3; do
+            python tiktok_ads.py "${{ steps.date.outputs.start }} ~ ${{ steps.date.outputs.end }}" && exit 0
+            echo "::warning::tiktok_ads.py 실패 (${i}/3), 30초 후 재시도"; sleep 30
+          done
+          echo "::error::tiktok_ads.py 3회 실패"; exit 1
+
+      # 영상: 평일 최근 90일, 토요일(KST)은 전체 재조회
+      - name: 영상 성과 pickdi video list (90일 / 토요일 full)
+        if: ${{ !cancelled() }}
+        run: |
+          DOW=$(TZ='Asia/Seoul' date '+%u')
+          if [ "$DOW" = "6" ]; then W="full"; else W="90"; fi
+          for i in 1 2 3; do
+            python video_perf_upsert.py "$W" && exit 0
+            echo "::warning::video_perf_upsert.py 실패 (${i}/3), 30초 후 재시도"; sleep 30
+          done
+          echo "::error::video_perf_upsert.py 3회 실패"; exit 1
