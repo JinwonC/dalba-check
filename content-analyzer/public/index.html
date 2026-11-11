@@ -141,6 +141,8 @@
   .relev{font-size:13.5px;background:var(--gold-soft);border-left:3px solid var(--gold);padding:12px 14px;border-radius:0 8px 8px 0}
   .copy{border:1px solid var(--line);background:#fff;color:var(--gold);font-size:12.5px;padding:6px 12px;border-radius:8px;cursor:pointer}
   .copy:hover{background:var(--gold-soft)}
+  .dlbtns{display:inline-flex;gap:6px;flex-wrap:wrap}
+  a.copy{text-decoration:none}
 
   /* history */
   .history{max-width:1180px;margin:6px auto 18px;padding:0 20px}
@@ -520,6 +522,7 @@ function renderTikTok(videoId, url){
 }
 
 // ---- native player + time sync ----
+let CURRENT_META = null;
 let PLAYER = null, SCENE_TIMES = [], LAST_ACTIVE = -1, CAPTIONS = [], LAST_CAP = -1;
 const CAP_HINT = '▶ 재생하면 한국어 자막이 표시됩니다';
 // Derive sentence-level Korean captions from the scene breakdown (no extra cost):
@@ -605,6 +608,7 @@ function wireSeekRows(){
 }
 
 function renderMeta(meta){
+  CURRENT_META = meta||{};
   const st = meta.stats||{};
   $('#vmeta').innerHTML = `
     <h2>${esc(meta.title||'(제목 없음)')}</h2>
@@ -779,10 +783,53 @@ function showVideo(embed, meta){
   renderMeta(meta||{});
   $('#layout').style.display='grid';
 }
+// Result download buttons (PDF / HTML). Older records exported to Drive keep their Doc link too.
 function driveSlotHTML(url){
-  return url
-    ? `<a class="copy" href="${esc(url)}" target="_blank" rel="noopener">📄 Drive에서 열기</a>`
-    : `<span class="copy" style="opacity:.55;cursor:default">📄 Drive 저장 중…</span>`;
+  return `<span class="dlbtns"><button type="button" class="copy" onclick="downloadReportPdf()">⬇ PDF</button><button type="button" class="copy" onclick="downloadReportHtml()">⬇ HTML</button>${
+    url?`<a class="copy" href="${esc(url)}" target="_blank" rel="noopener">📄 Drive</a>`:''}</span>`;
+}
+/** Standalone report document: video info + every result card (no player, no buttons). */
+function reportDocHTML(){
+  const m = CURRENT_META||{}, st = m.stats||{};
+  const right = $('#right').cloneNode(true);
+  right.querySelectorAll('.dlbtns, .loading, script').forEach(e=>e.remove());
+  right.querySelectorAll('[onclick]').forEach(e=>e.removeAttribute('onclick'));
+  const tags = [m.country&&ctryLabel(m.country), m.manager&&('👤 '+m.manager), m.product&&('📦 '+m.product)].filter(Boolean);
+  const css = [...document.querySelectorAll('style')].map(x=>x.textContent).join('\n');
+  const title = `@${m.author||'unknown'} — ${(m.title||'').slice(0,60)}`;
+  return '<!doctype html><html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">'
+    + '<title>'+esc('[분석] '+title)+'</title><style>'+css
+    + '\nbody{background:#fff;padding:24px}.rdoc{max-width:900px;margin:0 auto}.rdoc-h{border-bottom:2px solid var(--gold);padding-bottom:14px;margin-bottom:22px}'
+    + '.rdoc-h h1{font-size:20px;margin:0 0 6px}.rdoc-h .rmeta{font-size:13px;color:var(--muted);line-height:1.8}.rdoc-h .rmeta b{color:var(--ink)}'
+    + '@media print{body{padding:0}.card{break-inside:avoid-page}}</style></head><body><div class="rdoc">'
+    + `<div class="rdoc-h"><div style="font-size:12px;color:var(--gold);font-weight:700;letter-spacing:.5px">d'Alba · 콘텐츠 분석 리포트</div>`
+    + `<h1>${esc(m.title||'(제목 없음)')}</h1><div class="rmeta">@${esc(m.author||'unknown')}${tags.length?' · '+tags.map(esc).join(' · '):''}<br>`
+    + `조회 <b>${num(st.views)}</b> · 좋아요 <b>${num(st.likes)}</b> · 댓글 <b>${num(st.comments)}</b> · 공유 <b>${num(st.shares)}</b>`
+    + `${m.url?`<br><a href="${esc(m.url)}">${esc(m.url)}</a>`:''}<br>${esc(new Date().toLocaleString('ko-KR'))} 다운로드</div></div>`
+    + right.innerHTML + '</div></body></html>';
+}
+function reportFileName(ext){
+  const m = CURRENT_META||{};
+  const slug = String(m.author||'report').replace(/[^\w.-]+/g,'_').slice(0,40);
+  return `analysis-${slug}-${new Date().toISOString().slice(0,10)}.${ext}`;
+}
+function downloadReportHtml(){
+  const blob = new Blob([reportDocHTML()], {type:'text/html;charset=utf-8'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob); a.download = reportFileName('html');
+  document.body.appendChild(a); a.click();
+  setTimeout(()=>{ URL.revokeObjectURL(a.href); a.remove(); }, 1000);
+}
+// PDF: print the same standalone document from a hidden frame → "PDF로 저장" in the print dialog.
+function downloadReportPdf(){
+  document.getElementById('rptPrint')?.remove();
+  const f = document.createElement('iframe');
+  f.id = 'rptPrint';
+  f.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:0';
+  document.body.appendChild(f);
+  const d = f.contentDocument; d.open(); d.write(reportDocHTML()); d.close();
+  const prevTitle = document.title; document.title = reportFileName('pdf').replace(/\.pdf$/,'');
+  setTimeout(()=>{ f.contentWindow.focus(); f.contentWindow.print(); document.title = prevTitle; }, 300);
 }
 function fillRight(rep, driveUrl){
   rep = rep||{};
@@ -961,7 +1008,7 @@ function renderHistoryList(){
 async function deleteHistory(id){
   if(!id) return;
   const it = HISTORY.find(x=>x.id===id);
-  if(!confirm(`이 분석 기록을 삭제할까요?\n\n@${it?.creator||''} ${it?.product?('· '+it.product):''}\n(앱 기록·영상만 삭제 / Drive 문서는 남습니다)`)) return;
+  if(!confirm(`이 분석 기록을 삭제할까요?\n\n@${it?.creator||''} ${it?.product?('· '+it.product):''}\n(앱 기록·영상이 삭제됩니다)`)) return;
   try{
     await postJSON('/api/delete', { id });
     HISTORY = HISTORY.filter(x=>x.id!==id);
@@ -1036,10 +1083,9 @@ async function proceed(s, opts={}){
     }
     try{
       const saved = await postJSON('/api/save', { meta:s.meta, embed:s.embed, report:rep, comments:commentsRec, video:data.video||null });
-      if($('#driveSlot')) $('#driveSlot').innerHTML = driveSlotHTML(saved?.driveUrl);
       prependHistory({ id:s.embed?.videoId, creator:s.meta?.author, title:s.meta?.title, manager:s.meta?.manager, product:s.meta?.product, country:s.meta?.country, thumbnail:s.meta?.thumbnail, savedAt:Date.now() });
       setTimeout(loadHistory, 5000);
-    }catch(e){ if($('#driveSlot')) $('#driveSlot').innerHTML='<span class="copy" style="opacity:.55;cursor:default">Drive 저장 실패</span>'; }
+    }catch(e){ console.warn('save failed', e); }
   })();
   // In batch mode, wait for comments+save so the next item doesn't overwrite this one's DOM mid-flight.
   if(opts.sync) await tail;

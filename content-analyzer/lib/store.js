@@ -1,7 +1,5 @@
 import { Redis } from '@upstash/redis';
 import { get as blobGet, list as blobList, del as blobDel } from '@vercel/blob';
-import { reportToPlainText } from './reportText.js';
-import { pushToDrive, driveEnabled } from './drive.js';
 import { deleteVideo } from './videos.js';
 
 // History/reports live in Upstash Redis (tiny JSON, well within the free tier),
@@ -59,13 +57,10 @@ export async function saveAnalysis(record) {
 
   const rec = { ...record, id, savedAt: Date.now() };
 
-  // Export to Google Drive first so we can store the Doc link with the record.
-  let driveUrl = record.driveUrl || null;
-  if (driveEnabled()) {
-    const title = `[분석] ${rec.meta?.author || ''} — ${(rec.meta?.title || id).slice(0, 60)}`;
-    driveUrl = (await pushToDrive({ title, text: reportToPlainText(rec) }).catch(() => null)) || driveUrl;
-  }
-  rec.driveUrl = driveUrl;
+  // No Drive export: results are downloaded from the page as PDF/HTML instead.
+  // Keep the Doc link of records exported before that change.
+  const prev = await redis().get(RKEY(id)).catch(() => null);
+  rec.driveUrl = record.driveUrl || prev?.driveUrl || null;
 
   // Atomic per-key writes — no read-modify-write index to race/clobber.
   await Promise.all([
