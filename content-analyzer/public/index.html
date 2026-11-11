@@ -351,7 +351,8 @@
     <span id="fileName" class="filename"></span>
     <input id="manager" type="text" class="meta-in" placeholder="담당자 (예: 최진원)" />
     <input id="product" type="text" class="meta-in" placeholder="제품명 (예: 달바 멀티밤)" />
-    <div class="ctry" id="country" role="radiogroup" aria-label="국가 (필수)" title="국가 (필수)">
+    <div class="ctry" id="country" role="radiogroup" aria-label="담당 국가 (필수)" title="어느 국가 담당자인지 선택 (필수)">
+      <span class="ctry-lbl">담당 국가</span>
       <button type="button" role="radio" data-c="US">🇺🇸 미국</button>
       <button type="button" role="radio" data-c="UK">🇬🇧 영국</button>
       <button type="button" role="radio" data-c="DE">🇩🇪 독일</button>
@@ -528,7 +529,7 @@ setOutLang(OUT_LANG);
 function readTags(){
   const manager = $('#manager').value.trim(), product = $('#product').value.trim();
   if(!manager || !product){ $('#status').innerHTML='<div class="err">담당자와 제품명을 입력하세요. (필수)</div>'; return null; }
-  if(!COUNTRY){ $('#country').classList.add('need'); $('#status').innerHTML='<div class="err">국가를 선택하세요. (필수)</div>'; return null; }
+  if(!COUNTRY){ $('#country').classList.add('need'); $('#status').innerHTML='<div class="err">담당 국가를 선택하세요. (어느 국가 담당자인지, 필수)</div>'; return null; }
   return { manager, product, country: COUNTRY, lang: OUT_LANG };
 }
 
@@ -971,10 +972,10 @@ function renderHistoryList(){
       ${opts.map(([m,c])=>`<option value="${esc(m)}" ${m===HIST_MGR?'selected':''}>${esc(m)} (${c})</option>`).join('')}
     </select>`;
   const cc = new Map(); HISTORY.forEach(it=>{ const k=it.country||'none'; cc.set(k,(cc.get(k)||0)+1); });
-  const cfilter = `<select id="histCtry" class="hfilter" title="국가 필터">
-      <option value="">전체 국가 (${HISTORY.length})</option>
+  const cfilter = `<select id="histCtry" class="hfilter" title="담당 국가 필터">
+      <option value="">전체 담당 국가 (${HISTORY.length})</option>
       ${Object.keys(COUNTRIES).map(c=>`<option value="${c}" ${c===HIST_CTRY?'selected':''}>${esc(COUNTRIES[c])} (${cc.get(c)||0})</option>`).join('')}
-      ${cc.get('none')?`<option value="none" ${HIST_CTRY==='none'?'selected':''}>국가 미지정 (${cc.get('none')})</option>`:''}
+      ${cc.get('none')?`<option value="none" ${HIST_CTRY==='none'?'selected':''}>담당 국가 미지정 (${cc.get('none')})</option>`:''}
     </select>`;
   const toggle = `<button id="histToggle" class="htoggle">${HIST_OPEN?'접기':`펼치기 (${list.length})`}</button>`;
 
