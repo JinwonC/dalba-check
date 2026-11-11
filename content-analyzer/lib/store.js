@@ -39,6 +39,7 @@ function summaryOf(rec) {
     manager: rec.meta?.manager || '',
     product: rec.meta?.product || '',
     country: rec.meta?.country || '',
+    lang: rec.meta?.lang || '',
     thumbnail: rec.meta?.thumbnail || '',
     url: rec.meta?.url || rec.embed?.url || '',
     driveUrl: rec.driveUrl || '',

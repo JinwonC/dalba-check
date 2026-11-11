@@ -1,4 +1,5 @@
 import { GoogleGenAI, createUserContent, createPartFromUri } from '@google/genai';
+import { outLang, retarget, localizeSchema, langDirective } from './lang.js';
 
 const MODEL = process.env.GEMINI_MODEL || 'gemini-2.5-flash';
 
@@ -154,10 +155,11 @@ const SYSTEM = `너는 d'Alba Piedmont(프리미엄 비건 뷰티/스킨케어 �
 
 /**
  * Generate the structured scene + persuasion report with Gemini (watches the mp4 + reads the VTT).
- * Output is unified: Korean analysis with original-language scripts/keywords kept verbatim.
+ * Analysis is in meta.lang (default Korean); original-language scripts/keywords kept verbatim.
  */
 export async function generateReport({ videoBuffer, mimeType = 'video/mp4', transcriptVtt = '', meta = {}, tries = 1 }) {
   const client = ai();
+  const lang = outLang(meta.lang);
 
   let file = await client.files.upload({
     file: new Blob([videoBuffer], { type: mimeType }),
@@ -194,12 +196,12 @@ ${(transcriptVtt || '(없음 — 들리는/보이는 것에 근거)').slice(0, 3
     model: MODEL,
     contents: createUserContent([
       createPartFromUri(file.uri, file.mimeType),
-      SYSTEM,
+      langDirective(lang) + retarget(SYSTEM, lang),
       prompt,
     ]),
     config: {
       responseMimeType: 'application/json',
-      responseSchema: REPORT_SCHEMA,
+      responseSchema: localizeSchema(REPORT_SCHEMA, lang),
       temperature: 0.4,
     },
   }), { tries, base: 2500 });

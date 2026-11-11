@@ -28,11 +28,13 @@
   .ctry button:last-child{border-right:0}
   .ctry button:hover{background:var(--gold-soft)}
   .ctry button.on{background:var(--slate);color:#fff;font-weight:600}
+  .ctry .ctry-lbl{display:flex;align-items:center;padding:0 10px;font-size:12px;font-weight:600;color:var(--muted);background:#faf8f3;border-right:1px solid var(--line);white-space:nowrap}
   .ctry.need{border-color:#dc2626;box-shadow:0 0 0 3px rgba(220,38,38,.15)}
   .hitem .hcreator .htag.ct{color:#1f2937;background:#eef2f7}
   .hctrl{flex-wrap:wrap}
   @media (max-width:640px){
     .ctry{display:grid;grid-template-columns:repeat(5,1fr);width:100%}
+    .ctry .ctry-lbl{grid-column:1/-1;justify-content:center;padding:5px 0;border-right:0;border-bottom:1px solid var(--line)}
     .ctry button{padding:9px 2px;font-size:12px;white-space:normal;line-height:1.35}
     .hctrl{flex:1 1 100%;min-width:0;max-width:100%}
     .hctrl .hsearch{flex:1 1 100%;width:auto;min-width:0}
@@ -356,9 +358,17 @@
       <button type="button" role="radio" data-c="ES">🇪🇸 스페인</button>
       <button type="button" role="radio" data-c="FR">🇫🇷 프랑스</button>
     </div>
+    <div class="ctry" id="outlang" role="radiogroup" aria-label="분석 언어" title="분석 결과 언어">
+      <span class="ctry-lbl">분석 언어</span>
+      <button type="button" role="radio" data-l="ko">한국어</button>
+      <button type="button" role="radio" data-l="en">English</button>
+      <button type="button" role="radio" data-l="de">Deutsch</button>
+      <button type="button" role="radio" data-l="fr">Français</button>
+      <button type="button" role="radio" data-l="es">Español</button>
+    </div>
     <button class="go" id="go">분석하기</button>
   </div>
-  <div class="hint" id="analyzerHint">한 번에 <b>최대 5개</b>까지 순차 분석돼요. · 스크랩 + 화면분석에 개당 60~120초. · 분석은 한국어, 스크립트/키워드는 영어 원문 + 한국어 병기. · 업로드는 <b>mp4(H.264)</b> 권장(브라우저 재생·점프 지원). · 업로드 영상은 <b>30일</b> 보관 후 자동 삭제(분석 결과는 계속 남음).</div>
+  <div class="hint" id="analyzerHint">한 번에 <b>최대 5개</b>까지 순차 분석돼요. · 스크랩 + 화면분석에 개당 60~120초. · 분석은 <b>선택한 언어</b>로(기본 한국어), 대사·키워드는 원문 + 번역 병기. · 업로드는 <b>mp4(H.264)</b> 권장(브라우저 재생·점프 지원). · 업로드 영상은 <b>30일</b> 보관 후 자동 삭제(분석 결과는 계속 남음).</div>
 
   <div class="status" id="status"></div>
   <div class="batchbar" id="batchbar" style="display:none"></div>
@@ -503,12 +513,23 @@ function setCountry(c){
 }
 document.querySelectorAll('#country button').forEach(b=> b.addEventListener('click', ()=> setCountry(b.dataset.c)));
 setCountry(COUNTRY);
+// Analysis output language — Gemini writes the analysis in it; stored as meta.lang. Default Korean.
+const OUT_LANGS = ['ko','en','de','fr','es'];
+let OUT_LANG = (()=>{ try{ const l=localStorage.getItem('outLang')||'ko'; return OUT_LANGS.includes(l)?l:'ko'; }catch{ return 'ko'; } })();
+function setOutLang(l){
+  OUT_LANG = OUT_LANGS.includes(l) ? l : 'ko';
+  try{ localStorage.setItem('outLang', OUT_LANG); }catch{}
+  document.querySelectorAll('#outlang button').forEach(b=>{ const on=b.dataset.l===OUT_LANG; b.classList.toggle('on',on); b.setAttribute('aria-checked',on?'true':'false'); });
+}
+document.querySelectorAll('#outlang button').forEach(b=> b.addEventListener('click', ()=> setOutLang(b.dataset.l)));
+setOutLang(OUT_LANG);
+
 /** Bar inputs → tags stored on each analysis. Returns null (and shows why) if incomplete. */
 function readTags(){
   const manager = $('#manager').value.trim(), product = $('#product').value.trim();
   if(!manager || !product){ $('#status').innerHTML='<div class="err">담당자와 제품명을 입력하세요. (필수)</div>'; return null; }
   if(!COUNTRY){ $('#country').classList.add('need'); $('#status').innerHTML='<div class="err">국가를 선택하세요. (필수)</div>'; return null; }
-  return { manager, product, country: COUNTRY };
+  return { manager, product, country: COUNTRY, lang: OUT_LANG };
 }
 
 function renderTikTok(videoId, url){
@@ -523,8 +544,16 @@ function renderTikTok(videoId, url){
 
 // ---- native player + time sync ----
 let CURRENT_META = null;
+// Result-screen labels follow the language the analysis was written in (meta.lang; old records = ko).
+const RL = {
+  ko:{summary:'요약',hook:'🎬 오프닝 훅 분석',hookSub:'첫 3~6초',scenes:'씬별 분해',persuasion:'🧲 설득 전환 요인',keywords:'🔑 핵심 키워드',insights:'크리에이티브 인사이트',comments:'💬 댓글 분석',commentsLoading:'댓글 분석 중…',overlay:'📝 텍스트 오버레이',structure:'🔄 전환 구조',working:'✅ 잘 되고 있는 점',improve:'🔧 개선 포인트',recs:"💡 d'Alba 추천 액션",relevance:"🎯 d'Alba 연관성",audioHead:'Audio Script (원문 + 한국어)',seek:'클릭하면 이 구간으로 점프',sentiment:'🌡️ 전반 감성',analyzed:'분석 댓글 {n}개',themes:'🔁 반복 화제',questions:'❓ 질문·반론',requests:'📥 콘텐츠 요청',purchase:'🛒 구매 의향 신호',dActions:"💡 d'Alba 액션",notable:'⭐ 주목할 댓글',noComments:'수집된 댓글이 없습니다.',uploadNoComments:'업로드 영상은 댓글이 없습니다.',commentsFail:'댓글 분석 실패',views:'조회',likes:'좋아요',cmts:'댓글',shares:'공유',sec:'초',open:'원본 영상 열기 ↗',capHint:'▶ 재생하면 한국어 자막이 표시됩니다',report:'콘텐츠 분석 리포트',downloaded:'다운로드',noTitle:'(제목 없음)',flag:'🇰🇷',locale:'ko-KR'},
+  en:{summary:'Summary',hook:'🎬 Opening hook',hookSub:'first 3–6 s',scenes:'Scene breakdown',persuasion:'🧲 Conversion drivers',keywords:'🔑 Key words',insights:'Creative insights',comments:'💬 Comment analysis',commentsLoading:'Analyzing comments…',overlay:'📝 Text overlay',structure:'🔄 Conversion structure',working:"✅ What's working",improve:'🔧 Improvements',recs:"💡 Recommended actions for d'Alba",relevance:"🎯 Relevance to d'Alba",audioHead:'Audio Script (original + English)',seek:'Click to jump to this part',sentiment:'🌡️ Overall sentiment',analyzed:'{n} comments analyzed',themes:'🔁 Recurring themes',questions:'❓ Questions & objections',requests:'📥 Content requests',purchase:'🛒 Purchase signals',dActions:"💡 Actions for d'Alba",notable:'⭐ Notable comments',noComments:'No comments were collected.',uploadNoComments:'Uploaded videos have no comments.',commentsFail:'Comment analysis failed',views:'Views',likes:'Likes',cmts:'Comments',shares:'Shares',sec:'s',open:'Open original video ↗',capHint:'▶ Play to show English captions',report:'Content analysis report',downloaded:'downloaded',noTitle:'(no title)',flag:'🇬🇧',locale:'en-GB'},
+  de:{summary:'Zusammenfassung',hook:'🎬 Einstiegs-Hook',hookSub:'erste 3–6 Sek.',scenes:'Szenenanalyse',persuasion:'🧲 Conversion-Treiber',keywords:'🔑 Schlüsselbegriffe',insights:'Kreative Insights',comments:'💬 Kommentaranalyse',commentsLoading:'Kommentare werden analysiert…',overlay:'📝 Text-Overlay',structure:'🔄 Conversion-Struktur',working:'✅ Was funktioniert',improve:'🔧 Verbesserungen',recs:"💡 Empfohlene Maßnahmen für d'Alba",relevance:"🎯 Relevanz für d'Alba",audioHead:'Audio-Skript (Original + Deutsch)',seek:'Klicken, um zu dieser Stelle zu springen',sentiment:'🌡️ Gesamtstimmung',analyzed:'{n} Kommentare analysiert',themes:'🔁 Wiederkehrende Themen',questions:'❓ Fragen & Einwände',requests:'📥 Content-Wünsche',purchase:'🛒 Kaufsignale',dActions:"💡 Maßnahmen für d'Alba",notable:'⭐ Bemerkenswerte Kommentare',noComments:'Es wurden keine Kommentare gesammelt.',uploadNoComments:'Hochgeladene Videos haben keine Kommentare.',commentsFail:'Kommentaranalyse fehlgeschlagen',views:'Aufrufe',likes:'Likes',cmts:'Kommentare',shares:'Shares',sec:' Sek.',open:'Originalvideo öffnen ↗',capHint:'▶ Abspielen, um deutsche Untertitel zu sehen',report:'Content-Analysebericht',downloaded:'heruntergeladen',noTitle:'(kein Titel)',flag:'🇩🇪',locale:'de-DE'},
+  fr:{summary:'Résumé',hook:"🎬 Hook d'ouverture",hookSub:'3–6 premières s',scenes:'Découpage par scène',persuasion:'🧲 Leviers de conversion',keywords:'🔑 Mots clés',insights:'Insights créatifs',comments:'💬 Analyse des commentaires',commentsLoading:'Analyse des commentaires…',overlay:'📝 Texte à l’écran',structure:'🔄 Structure de conversion',working:'✅ Ce qui fonctionne',improve:'🔧 Axes d’amélioration',recs:"💡 Actions recommandées pour d'Alba",relevance:"🎯 Pertinence pour d'Alba",audioHead:'Script audio (original + français)',seek:'Cliquer pour aller à ce passage',sentiment:'🌡️ Sentiment général',analyzed:'{n} commentaires analysés',themes:'🔁 Thèmes récurrents',questions:'❓ Questions & objections',requests:'📥 Demandes de contenu',purchase:"🛒 Signaux d'achat",dActions:"💡 Actions pour d'Alba",notable:'⭐ Commentaires marquants',noComments:"Aucun commentaire collecté.",uploadNoComments:'Les vidéos importées n’ont pas de commentaires.',commentsFail:"Échec de l'analyse des commentaires",views:'Vues',likes:'J’aime',cmts:'Commentaires',shares:'Partages',sec:' s',open:'Ouvrir la vidéo originale ↗',capHint:'▶ Lancez la lecture pour les sous-titres en français',report:'Rapport d’analyse de contenu',downloaded:'téléchargé',noTitle:'(sans titre)',flag:'🇫🇷',locale:'fr-FR'},
+  es:{summary:'Resumen',hook:'🎬 Hook inicial',hookSub:'primeros 3–6 s',scenes:'Desglose por escenas',persuasion:'🧲 Impulsores de conversión',keywords:'🔑 Palabras clave',insights:'Insights creativos',comments:'💬 Análisis de comentarios',commentsLoading:'Analizando comentarios…',overlay:'📝 Texto en pantalla',structure:'🔄 Estructura de conversión',working:'✅ Lo que funciona',improve:'🔧 Mejoras',recs:"💡 Acciones recomendadas para d'Alba",relevance:"🎯 Relevancia para d'Alba",audioHead:'Guion de audio (original + español)',seek:'Haz clic para saltar a esta parte',sentiment:'🌡️ Sentimiento general',analyzed:'{n} comentarios analizados',themes:'🔁 Temas recurrentes',questions:'❓ Preguntas y objeciones',requests:'📥 Peticiones de contenido',purchase:'🛒 Señales de compra',dActions:"💡 Acciones para d'Alba",notable:'⭐ Comentarios destacados',noComments:'No se recopilaron comentarios.',uploadNoComments:'Los vídeos subidos no tienen comentarios.',commentsFail:'Falló el análisis de comentarios',views:'Vistas',likes:'Me gusta',cmts:'Comentarios',shares:'Compartidos',sec:' s',open:'Abrir vídeo original ↗',capHint:'▶ Reproduce para ver subtítulos en español',report:'Informe de análisis de contenido',downloaded:'descargado',noTitle:'(sin título)',flag:'🇪🇸',locale:'es-ES'},
+};
+const rl = (k, n)=>{ const L = RL[(CURRENT_META&&CURRENT_META.lang)||'ko'] || RL.ko; const v = L[k] ?? RL.ko[k]; return n==null ? v : String(v).replace('{n}', n); };
 let PLAYER = null, SCENE_TIMES = [], LAST_ACTIVE = -1, CAPTIONS = [], LAST_CAP = -1;
-const CAP_HINT = '▶ 재생하면 한국어 자막이 표시됩니다';
 // Derive sentence-level Korean captions from the scene breakdown (no extra cost):
 // split each scene's Korean audio into sentences, spread across the scene's time range.
 function deriveCaptions(scenes){
@@ -545,7 +574,7 @@ function deriveCaptions(scenes){
 function setCaptions(scenes){
   CAPTIONS = deriveCaptions(scenes); LAST_CAP = -1;
   const el=$('#caption'); if(!el) return;
-  if(CAPTIONS.length){ el.style.display=''; el.className='caption empty'; el.textContent=CAP_HINT; }
+  if(CAPTIONS.length){ el.style.display=''; el.className='caption empty'; el.textContent=rl('capHint'); }
   else el.style.display='none';
 }
 function toSec(tok){
@@ -596,7 +625,7 @@ function onTime(){
     for(let i=0;i<CAPTIONS.length;i++){ if(t>=CAPTIONS[i].t) ci=i; else break; }
     if(ci!==LAST_CAP){
       LAST_CAP = ci; const el=$('#caption');
-      if(el){ if(ci<0){ el.className='caption empty'; el.textContent=CAP_HINT; } else { el.className='caption'; el.textContent=CAPTIONS[ci].text; } }
+      if(el){ if(ci<0){ el.className='caption empty'; el.textContent=rl('capHint'); } else { el.className='caption'; el.textContent=CAPTIONS[ci].text; } }
     }
   }
 }
@@ -611,22 +640,22 @@ function renderMeta(meta){
   CURRENT_META = meta||{};
   const st = meta.stats||{};
   $('#vmeta').innerHTML = `
-    <h2>${esc(meta.title||'(제목 없음)')}</h2>
-    <div class="author">@${esc(meta.author||'unknown')} ${meta.durationSeconds?('· '+meta.durationSeconds+'초'):''}${meta.country?`<span class="ctag">${esc(ctryLabel(meta.country))}</span>`:''}</div>
+    <h2>${esc(meta.title||rl('noTitle'))}</h2>
+    <div class="author">@${esc(meta.author||'unknown')} ${meta.durationSeconds?('· '+meta.durationSeconds+rl('sec')):''}${meta.country?`<span class="ctag">${esc(ctryLabel(meta.country))}</span>`:''}</div>
     <div class="stats">
-      <span class="stat">조회 <b>${num(st.views)}</b></span>
-      <span class="stat">좋아요 <b>${num(st.likes)}</b></span>
-      <span class="stat">댓글 <b>${num(st.comments)}</b></span>
-      <span class="stat">공유 <b>${num(st.shares)}</b></span>
+      <span class="stat">${rl('views')} <b>${num(st.views)}</b></span>
+      <span class="stat">${rl('likes')} <b>${num(st.likes)}</b></span>
+      <span class="stat">${rl('cmts')} <b>${num(st.comments)}</b></span>
+      <span class="stat">${rl('shares')} <b>${num(st.shares)}</b></span>
     </div>
     <div class="tags">${(meta.hashtags||[]).map(h=>`<span class="tag">#${esc(h)}</span>`).join('')}</div>
-    <div style="margin-top:10px"><a href="${esc(meta.url)}" target="_blank" rel="noopener">틱톡에서 열기 ↗</a></div>`;
+    <div style="margin-top:10px"><a href="${esc(meta.url)}" target="_blank" rel="noopener">${rl('open')}</a></div>`;
 }
 
 function hookHTML(h){
   if(!h) return '';
   const overlay = (h.text_overlay||h.text_overlay_kr) ? `
-    <div class="overlay"><span class="lbl">📝 텍스트 오버레이</span>${esc(h.text_overlay||'')}
+    <div class="overlay"><span class="lbl">${rl('overlay')}</span>${esc(h.text_overlay||'')}
       ${h.text_overlay_kr?`<div class="kr">${esc(h.text_overlay_kr)}</div>`:''}</div>` : '';
   const lines = (h.lines||[]).map(l=>`
     <div class="hline">
@@ -641,22 +670,22 @@ function hookHTML(h){
 function sceneTableHTML(scenes){
   SCENE_TIMES = (scenes||[]).map(s=>parseRange(s.time));
   const rows = (scenes||[]).map((s,i)=>`
-    <tr class="seekrow" data-idx="${i}" title="클릭하면 이 구간으로 점프">
+    <tr class="seekrow" data-idx="${i}" title="${esc(rl('seek'))}">
       <td class="scol"><div class="scene-name">${esc(s.scene)}</div><div class="scene-time"><span class="seek-ico">▶</span> ${esc(s.time)}</div></td>
       <td><div class="shot">📷 ${esc(s.shot)}</div>${esc(s.visual)}</td>
       <td class="acol">
         <div class="audio-en">${esc(s.audio_original)}</div>
-        ${s.audio_kr && s.audio_kr!==s.audio_original?`<div class="audio-kr">🇰🇷 ${esc(s.audio_kr)}</div>`:''}
+        ${s.audio_kr && s.audio_kr!==s.audio_original?`<div class="audio-kr">${rl('flag')} ${esc(s.audio_kr)}</div>`:''}
       </td>
     </tr>`).join('');
-  return `<table id="sceneTable"><thead><tr><th>Scene</th><th>Visual Description</th><th>Audio Script (원문 + 한국어)</th></tr></thead><tbody>${rows}</tbody></table>`;
+  return `<table id="sceneTable"><thead><tr><th>Scene</th><th>Visual Description</th><th>${esc(rl('audioHead'))}</th></tr></thead><tbody>${rows}</tbody></table>`;
 }
 
 function persuasionHTML(p){
   if(!p) return '';
   const factors = (p.factors||[]).map(f=>`
     <div class="factor"><div class="fn">${esc(f.factor)}</div><div class="fd">${esc(f.detail)}</div></div>`).join('');
-  const struct = p.structure?`<div class="struct"><b>🔄 전환 구조</b><br>${esc(p.structure)}</div>`:'';
+  const struct = p.structure?`<div class="struct"><b>${rl('structure')}</b><br>${esc(p.structure)}</div>`:'';
   return factors + struct;
 }
 
@@ -672,26 +701,26 @@ function commentsHTML(ca, count){
   const notable = (ca.notable||[]).map(n=>`<div class="hline"><div class="en">“${esc(n.text)}”</div><div class="an">${esc(n.note)}</div></div>`).join('');
   const block = (title, arr)=> (arr&&arr.length)?`<div class="blk"><h4>${title}</h4><ul>${li(arr)}</ul></div>`:'';
   return `
-    <div class="struct" style="margin:0 0 14px"><b>🌡️ 전반 감성</b><br>${esc(ca.sentiment)} <span style="color:var(--muted)">(분석 댓글 ${count||0}개)</span></div>
-    ${themes?`<h4 style="margin:0 0 6px;font-size:13.5px">🔁 반복 화제</h4>${themes}`:''}
+    <div class="struct" style="margin:0 0 14px"><b>${rl('sentiment')}</b><br>${esc(ca.sentiment)} <span style="color:var(--muted)">(${esc(rl('analyzed', count||0))})</span></div>
+    ${themes?`<h4 style="margin:0 0 6px;font-size:13.5px">${rl('themes')}</h4>${themes}`:''}
     <div class="ins" style="margin-top:14px">
-      ${block('❓ 질문·반론', ca.questions_objections)}
-      ${block('📥 콘텐츠 요청', ca.content_requests)}
-      ${block('🛒 구매 의향 신호', ca.purchase_signals)}
-      ${block("💡 d'Alba 액션", ca.dalba_actions)}
+      ${block(rl('questions'), ca.questions_objections)}
+      ${block(rl('requests'), ca.content_requests)}
+      ${block(rl('purchase'), ca.purchase_signals)}
+      ${block(rl('dActions'), ca.dalba_actions)}
     </div>
-    ${notable?`<h4 style="margin:16px 0 6px;font-size:13.5px">⭐ 주목할 댓글</h4>${notable}`:''}`;
+    ${notable?`<h4 style="margin:16px 0 6px;font-size:13.5px">${rl('notable')}</h4>${notable}`:''}`;
 }
 
 function insightsHTML(ins, relevance){
   const li = (a)=> (a||[]).map(x=>`<li>${esc(x)}</li>`).join('');
   return `
     <div class="ins">
-      <div class="blk"><h4>✅ 잘 되고 있는 점</h4><ul>${li(ins.whats_working)}</ul></div>
-      <div class="blk"><h4>🔧 개선 포인트</h4><ul>${li(ins.improvements)}</ul></div>
-      <div class="rec"><h4 style="margin:0 0 8px">💡 d'Alba 추천 액션</h4><ul>${li(ins.recommendations)}</ul></div>
+      <div class="blk"><h4>${rl('working')}</h4><ul>${li(ins.whats_working)}</ul></div>
+      <div class="blk"><h4>${rl('improve')}</h4><ul>${li(ins.improvements)}</ul></div>
+      <div class="rec"><h4 style="margin:0 0 8px">${rl('recs')}</h4><ul>${li(ins.recommendations)}</ul></div>
     </div>
-    ${relevance?`<div class="relev" style="margin-top:14px"><b>🎯 d'Alba 연관성</b><br>${esc(relevance)}</div>`:''}`;
+    ${relevance?`<div class="relev" style="margin-top:14px"><b>${rl('relevance')}</b><br>${esc(relevance)}</div>`:''}`;
 }
 
 function reportToText(rep){
@@ -797,15 +826,15 @@ function reportDocHTML(){
   const tags = [m.country&&ctryLabel(m.country), m.manager&&('👤 '+m.manager), m.product&&('📦 '+m.product)].filter(Boolean);
   const css = [...document.querySelectorAll('style')].map(x=>x.textContent).join('\n');
   const title = `@${m.author||'unknown'} — ${(m.title||'').slice(0,60)}`;
-  return '<!doctype html><html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">'
-    + '<title>'+esc('[분석] '+title)+'</title><style>'+css
+  return '<!doctype html><html lang="'+((m.lang)||'ko')+'"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">'
+    + '<title>'+esc(title)+'</title><style>'+css
     + '\nbody{background:#fff;padding:24px}.rdoc{max-width:900px;margin:0 auto}.rdoc-h{border-bottom:2px solid var(--gold);padding-bottom:14px;margin-bottom:22px}'
     + '.rdoc-h h1{font-size:20px;margin:0 0 6px}.rdoc-h .rmeta{font-size:13px;color:var(--muted);line-height:1.8}.rdoc-h .rmeta b{color:var(--ink)}'
     + '@media print{body{padding:0}.card{break-inside:avoid-page}}</style></head><body><div class="rdoc">'
-    + `<div class="rdoc-h"><div style="font-size:12px;color:var(--gold);font-weight:700;letter-spacing:.5px">d'Alba · 콘텐츠 분석 리포트</div>`
-    + `<h1>${esc(m.title||'(제목 없음)')}</h1><div class="rmeta">@${esc(m.author||'unknown')}${tags.length?' · '+tags.map(esc).join(' · '):''}<br>`
-    + `조회 <b>${num(st.views)}</b> · 좋아요 <b>${num(st.likes)}</b> · 댓글 <b>${num(st.comments)}</b> · 공유 <b>${num(st.shares)}</b>`
-    + `${m.url?`<br><a href="${esc(m.url)}">${esc(m.url)}</a>`:''}<br>${esc(new Date().toLocaleString('ko-KR'))} 다운로드</div></div>`
+    + `<div class="rdoc-h"><div style="font-size:12px;color:var(--gold);font-weight:700;letter-spacing:.5px">d'Alba · ${esc(rl('report'))}</div>`
+    + `<h1>${esc(m.title||rl('noTitle'))}</h1><div class="rmeta">@${esc(m.author||'unknown')}${tags.length?' · '+tags.map(esc).join(' · '):''}<br>`
+    + `${rl('views')} <b>${num(st.views)}</b> · ${rl('likes')} <b>${num(st.likes)}</b> · ${rl('cmts')} <b>${num(st.comments)}</b> · ${rl('shares')} <b>${num(st.shares)}</b>`
+    + `${m.url?`<br><a href="${esc(m.url)}">${esc(m.url)}</a>`:''}<br>${esc(new Date().toLocaleString(rl('locale')))} ${esc(rl('downloaded'))}</div></div>`
     + right.innerHTML + '</div></body></html>';
 }
 function reportFileName(ext){
@@ -835,32 +864,32 @@ function fillRight(rep, driveUrl){
   rep = rep||{};
   $('#right').innerHTML = `
     <div class="card">
-      <div class="head"><h3>요약</h3><span id="driveSlot">${driveSlotHTML(driveUrl)}</span></div>
+      <div class="head"><h3>${rl('summary')}</h3><span id="driveSlot">${driveSlotHTML(driveUrl)}</span></div>
       <div class="body summary">${esc(rep.summary||'')}</div>
     </div>
     <div class="card">
-      <div class="head"><h3>🎬 오프닝 훅 분석 <span style="color:var(--muted);font-weight:400;font-size:12px">· 첫 3~6초</span></h3></div>
+      <div class="head"><h3>${rl('hook')} <span style="color:var(--muted);font-weight:400;font-size:12px">· ${rl('hookSub')}</span></h3></div>
       <div class="body">${hookHTML(rep.hook_breakdown)}</div>
     </div>
     <div class="card">
-      <div class="head"><h3>씬별 분해</h3></div>
+      <div class="head"><h3>${rl('scenes')}</h3></div>
       <div class="body" style="padding:0">${sceneTableHTML(rep.scenes)}</div>
     </div>
     <div class="card">
-      <div class="head"><h3>🧲 설득 전환 요인</h3></div>
+      <div class="head"><h3>${rl('persuasion')}</h3></div>
       <div class="body">${persuasionHTML(rep.persuasion)}</div>
     </div>
     <div class="card">
-      <div class="head"><h3>🔑 핵심 키워드</h3></div>
+      <div class="head"><h3>${rl('keywords')}</h3></div>
       <div class="body">${keywordsHTML(rep.keywords)}</div>
     </div>
     <div class="card">
-      <div class="head"><h3>크리에이티브 인사이트</h3></div>
+      <div class="head"><h3>${rl('insights')}</h3></div>
       <div class="body">${insightsHTML(rep.insights||{}, rep.dalba_relevance)}</div>
     </div>
     <div class="card" id="commentsCard">
-      <div class="head"><h3>💬 댓글 분석</h3></div>
-      <div class="body" id="commentsBody"><div class="loading"><div class="spinner"></div>댓글 분석 중…</div></div>
+      <div class="head"><h3>${rl('comments')}</h3></div>
+      <div class="body" id="commentsBody"><div class="loading"><div class="spinner"></div>${rl('commentsLoading')}</div></div>
     </div>`;
   wireSeekRows();
   setCaptions(rep.scenes);
@@ -868,7 +897,7 @@ function fillRight(rep, driveUrl){
 function fillComments(ca, count){
   $('#commentsBody').innerHTML = count
     ? commentsHTML(ca, count)
-    : '<div style="color:var(--muted);font-size:13px">수집된 댓글이 없습니다.</div>';
+    : `<div style="color:var(--muted);font-size:13px">${esc(rl('noComments'))}</div>`;
 }
 
 // ---- history ----
@@ -904,7 +933,7 @@ function hitemHTML(it){ return `
     <div class="hitem" data-id="${esc(it.id)}">
       ${it.thumbnail?`<img src="${esc(it.thumbnail)}" referrerpolicy="no-referrer" onerror="this.style.visibility='hidden'">`:'<div style="width:42px;height:54px;border-radius:6px;background:#eee"></div>'}
       <div class="hmain">
-        <div class="hcreator">@${esc(it.creator||'unknown')}${it.country?`<span class="htag ct">${esc(ctryLabel(it.country))}</span>`:''}${it.manager?`<span class="htag">👤 ${esc(it.manager)}</span>`:''}${it.product?`<span class="htag">📦 ${esc(it.product)}</span>`:''}</div>
+        <div class="hcreator">@${esc(it.creator||'unknown')}${it.country?`<span class="htag ct">${esc(ctryLabel(it.country))}</span>`:''}${it.lang&&it.lang!=='ko'?`<span class="htag ct">🌐 ${esc(it.lang.toUpperCase())}</span>`:''}${it.manager?`<span class="htag">👤 ${esc(it.manager)}</span>`:''}${it.product?`<span class="htag">📦 ${esc(it.product)}</span>`:''}</div>
         <div class="htitle">${esc(it.title||'')}</div>
       </div>
       <div class="hdate">${fmtDate(it.savedAt)}</div>
@@ -1071,7 +1100,7 @@ async function proceed(s, opts={}){
   const tail = (async ()=>{
     let commentsRec = null;
     if(opts.noComments){
-      $('#commentsBody') && ($('#commentsBody').innerHTML = '<div style="color:var(--muted);font-size:13px">업로드 영상은 댓글이 없습니다.</div>');
+      $('#commentsBody') && ($('#commentsBody').innerHTML = `<div style="color:var(--muted);font-size:13px">${esc(rl('uploadNoComments'))}</div>`);
     } else {
       try{
         const c = await postJSON('/api/comments', s.comments
@@ -1079,11 +1108,11 @@ async function proceed(s, opts={}){
           : { url: s.embed?.url, meta: s.meta||{} });
         commentsRec = { analysis: c.comments_analysis, count: c.count };
         fillComments(c.comments_analysis, c.count);
-      }catch(e){ $('#commentsBody') && ($('#commentsBody').innerHTML = `<div style="color:var(--muted);font-size:13px">댓글 분석 실패: ${esc(e.message)}</div>`); }
+      }catch(e){ $('#commentsBody') && ($('#commentsBody').innerHTML = `<div style="color:var(--muted);font-size:13px">${esc(rl('commentsFail'))}: ${esc(e.message)}</div>`); }
     }
     try{
       const saved = await postJSON('/api/save', { meta:s.meta, embed:s.embed, report:rep, comments:commentsRec, video:data.video||null });
-      prependHistory({ id:s.embed?.videoId, creator:s.meta?.author, title:s.meta?.title, manager:s.meta?.manager, product:s.meta?.product, country:s.meta?.country, thumbnail:s.meta?.thumbnail, savedAt:Date.now() });
+      prependHistory({ id:s.embed?.videoId, creator:s.meta?.author, title:s.meta?.title, manager:s.meta?.manager, product:s.meta?.product, country:s.meta?.country, lang:s.meta?.lang, thumbnail:s.meta?.thumbnail, savedAt:Date.now() });
       setTimeout(loadHistory, 5000);
     }catch(e){ console.warn('save failed', e); }
   })();
@@ -1280,7 +1309,7 @@ async function gResolveReport(ref, manager, prodName){
   }
   const vid = gVideoIdFromUrl(ref.url);
   if(vid){ const known=HISTORY.find(h=>h.id===vid); if(known){ const rec=await getJSON('/api/analysis?id='+encodeURIComponent(vid)); if(rec&&rec.report){ ref.creator=rec.meta?.author||''; return { meta:rec.meta||{}, report:rec.report||{}, video:rec.video||null }; } } }
-  const s = await scrapeLink(ref.url, { manager, product: prodName, country: COUNTRY });
+  const s = await scrapeLink(ref.url, { manager, product: prodName, country: COUNTRY, lang: OUT_LANG });
   const data = await reportWithRetry(s.media||{}, s.meta||{}, s.embed?.videoId);
   ref.creator = s.meta?.author || '';
   postJSON('/api/save', { meta:s.meta, embed:s.embed, report:data.report, comments:null, video:data.video||null }).catch(()=>{});

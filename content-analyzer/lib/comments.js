@@ -1,4 +1,5 @@
 import { GoogleGenAI } from '@google/genai';
+import { outLang, retarget, localizeSchema, langDirective } from './lang.js';
 
 const MODEL = process.env.GEMINI_MODEL || 'gemini-2.5-flash';
 
@@ -57,6 +58,8 @@ const SYSTEM = `너는 d'Alba Piedmont(뷰티/스킨케어 브랜드)의 소셜 
 - 실제 댓글에 근거할 것. 지어내지 말고, 표본이 적으면 그렇게 말한다.
 - 브랜드/마케팅 관점에서 유용한 신호(감성, 반복 질문·반론, 콘텐츠 요청, 구매 의향)를 뽑는다.`;
 
+const NO_COMMENTS = { ko: '수집된 댓글이 없습니다.', en: 'No comments were collected.', de: 'Es wurden keine Kommentare gesammelt.', fr: 'Aucun commentaire collecté.', es: 'No se recopilaron comentarios.' };
+
 /**
  * Analyze a list of comments with Gemini (text-only — fast, no video upload).
  * @param {object} args
@@ -64,9 +67,10 @@ const SYSTEM = `너는 d'Alba Piedmont(뷰티/스킨케어 브랜드)의 소셜 
  * @param {object} [args.meta]
  */
 export async function analyzeComments({ comments = [], meta = {} }) {
+  const lang = outLang(meta.lang);
   if (!comments.length) {
     return {
-      sentiment: '수집된 댓글이 없습니다.',
+      sentiment: NO_COMMENTS[lang],
       themes: [], questions_objections: [], content_requests: [],
       purchase_signals: [], notable: [], dalba_actions: [],
     };
@@ -89,10 +93,10 @@ ${list}
 
   const response = await ai().models.generateContent({
     model: MODEL,
-    contents: `${SYSTEM}\n\n${prompt}`,
+    contents: `${langDirective(lang)}${retarget(SYSTEM, lang)}\n\n${prompt}`,
     config: {
       responseMimeType: 'application/json',
-      responseSchema: COMMENTS_SCHEMA,
+      responseSchema: localizeSchema(COMMENTS_SCHEMA, lang),
       temperature: 0.4,
     },
   });
