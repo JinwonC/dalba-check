@@ -43,6 +43,9 @@ HEADERS = [
 
 LA_TZ = timezone(timedelta(hours=-8))  # America/Los_Angeles (표준시, DST 무시)
 
+# 영상 성과 API의 한 번 조회 기간 상한 (넘으면 28001022로 거부됨)
+MAX_RANGE_DAYS = 60
+
 
 # ─────────────────────────────────────────
 # TikTok 서명 / 요청 유틸
@@ -192,94 +195,139 @@ def run_sync(from_date: datetime, to_date: datetime):
                 video_index_map[vid] = i
 
     updated_at = datetime.now(LA_TZ).strftime("%Y-%m-%d %H:%M:%S")
-    page_token = None
-    page_count = 0
     update_count = 0
     new_count = 0
     aborted = False
+    last_page = 0
+
+    from_aware = from_date.replace(tzinfo=timezone.utc) if from_date.tzinfo is None else from_date
+    to_aware = to_date.replace(tzinfo=timezone.utc) if to_date.tzinfo is None else to_date
+
+    # API는 조회 기간이 60일을 넘으면 거부한다(28001022 "date range cannot exceed 60 days").
+    # → 60일 이하 청크로 나눠 조회하고, 영상별로 가산 지표(GMV·SKU Orders·Units Sold·Views)를 합산한다.
+    #   (각 청크 응답은 '그 청크 기간 동안의' 성과라서, 합치면 전체 기간 누적이 된다.)
+    chunks = []
+    cs = from_aware
+    while cs < to_aware:
+        ce = min(cs + timedelta(days=MAX_RANGE_DAYS), to_aware)
+        chunks.append((cs, ce))
+        cs = ce
+    if not chunks:
+        chunks = [(from_aware, to_aware)]
+
+    merged: dict[str, dict] = {}   # video_id → 합산 결과 (처음 본 순서 유지 = 신규 추가 순서)
+
+    for ci, (c_from, c_to) in enumerate(chunks, start=1):
+        if len(chunks) > 1:
+            print(f"  [청크 {ci}/{len(chunks)}] {c_from.strftime('%Y-%m-%d')} ~ {c_to.strftime('%Y-%m-%d')}")
+        page_token = None
+        page_count = 0
+        while True:
+            print(f"  페이지 {page_count + 1} 요청 중... (page_token={page_token})")
+            result = fetch_video_performance(c_from, c_to, page_token)
+
+            # TikTok 일시적 서버 오류(36009003 등)로 3회 연속 실패하면,
+            # 처음부터 다시 받지 않고 '같은 페이지'부터 더 길게 기다렸다가 이어서 받는다.
+            for wait in (30, 60, 120, 180):
+                if result:
+                    break
+                print(f"  페이지 {page_count + 1} 실패 — {wait}초 후 같은 페이지부터 이어서 재시도")
+                time.sleep(wait)
+                result = fetch_video_performance(c_from, c_to, page_token)
+
+            if not result:
+                # 예전엔 여기서 조용히 멈추고 '완료'로 끝나서, 뒤쪽 페이지 영상(갱신·신규)이 통째로 빠졌다.
+                print(f"  ❌ API 오류 - 페이지 {page_count + 1}에서 중단")
+                aborted = True
+                last_page = page_count + 1
+                break
+
+            for video in result.get("data", {}).get("videos") or []:
+                video_id = str(video.get("id") or "").strip()
+                if not video_id:
+                    continue
+
+                post_time_str = video.get("video_post_time") or ""
+                try:
+                    post_date = datetime.fromisoformat(post_time_str.replace("Z", "+00:00")) if post_time_str else datetime(1970, 1, 1, tzinfo=timezone.utc)
+                    if post_date.tzinfo is None:
+                        post_date = post_date.replace(tzinfo=timezone.utc)
+                except ValueError:
+                    post_date = datetime(1970, 1, 1, tzinfo=timezone.utc)
+
+                # 기간 필터 (전체 기간 기준: 이 기간에 포스팅된 영상만)
+                if not (from_aware <= post_date <= to_aware):
+                    continue
+
+                gmv = video.get("gmv") or {}
+                views = float(video.get("views") or 0)
+                try:
+                    ctr = float(video.get("click_through_rate") or 0)
+                except (TypeError, ValueError):
+                    ctr = 0.0
+                products = video.get("products") or []
+                m = merged.get(video_id)
+                if m is None:
+                    merged[video_id] = {
+                        "post": post_time_str, "user": video.get("username") or "",
+                        "title": video.get("title") or "",
+                        "gmv": float(gmv.get("amount") or 0), "cur": gmv.get("currency") or "",
+                        "sku": float(video.get("sku_orders") or 0),
+                        "units": float(video.get("units_sold") or 0),
+                        "views": views, "ctr_w": ctr * views, "ctr_last": ctr,
+                        "pids": ", ".join(str(p.get("id") or "") for p in products),
+                        "pnames": ", ".join(str(p.get("name") or "") for p in products),
+                    }
+                else:  # 다른 청크에서 또 나온 영상 → 가산 지표 합산, 나머지는 최신 청크 값
+                    m["gmv"] += float(gmv.get("amount") or 0)
+                    m["sku"] += float(video.get("sku_orders") or 0)
+                    m["units"] += float(video.get("units_sold") or 0)
+                    m["views"] += views
+                    m["ctr_w"] += ctr * views
+                    m["ctr_last"] = ctr
+                    m["cur"] = gmv.get("currency") or m["cur"]
+                    m["user"] = video.get("username") or m["user"]
+                    m["title"] = video.get("title") or m["title"]
+                    if products:
+                        m["pids"] = ", ".join(str(p.get("id") or "") for p in products)
+                        m["pnames"] = ", ".join(str(p.get("name") or "") for p in products)
+
+            new_token = result.get("data", {}).get("next_page_token") or None
+            if not new_token or new_token == page_token:
+                break
+            page_token = new_token
+            page_count += 1
+            time.sleep(0.3)
+
+        if aborted:
+            break
+
+    if aborted and len(chunks) > 1:
+        # 여러 청크를 합산하는 경우, 일부 청크가 빠진 채 쓰면 누적값이 실제보다 작게 덮어써진다 → 쓰지 않음
+        print(f"\n❌ 청크 조회 중단 — 합산값 손상 방지를 위해 시트에 쓰지 않고 실패로 종료")
+        raise SystemExit(1)
 
     # 배치 업데이트용 버퍼
     batch_updates: list[dict] = []  # {"range": "A2:M2", "values": [[...]]}
     append_rows: list[list] = []
-
-    while True:
-        print(f"  페이지 {page_count + 1} 요청 중... (page_token={page_token})")
-        result = fetch_video_performance(from_date, to_date, page_token)
-
-        # TikTok 일시적 서버 오류(36009003 등)로 3회 연속 실패하면,
-        # 처음부터 다시 받지 않고 '같은 페이지'부터 더 길게 기다렸다가 이어서 받는다.
-        for wait in (30, 60, 120, 180):
-            if result:
-                break
-            print(f"  페이지 {page_count + 1} 실패 — {wait}초 후 같은 페이지부터 이어서 재시도")
-            time.sleep(wait)
-            result = fetch_video_performance(from_date, to_date, page_token)
-
-        if not result:
-            # 예전엔 여기서 조용히 멈추고 '완료'로 끝나서, 뒤쪽 페이지 영상(갱신·신규)이 통째로 빠졌다.
-            # 받은 만큼은 기록하되(영상별 값은 한 번의 조회 결과라 정확함) 실패로 종료 → 워크플로우가 재실행.
-            print(f"  ❌ API 오류 - 페이지 {page_count + 1}에서 중단 (받은 영상까지만 기록 후 실패로 종료)")
-            aborted = True
-            break
-
-        videos = result.get("data", {}).get("videos") or []
-
-        for video in videos:
-            video_id = str(video.get("id") or "").strip()
-            if not video_id:
-                continue
-
-            post_time_str = video.get("video_post_time") or ""
-            try:
-                post_date = datetime.fromisoformat(post_time_str.replace("Z", "+00:00")) if post_time_str else datetime(1970, 1, 1, tzinfo=timezone.utc)
-                if post_date.tzinfo is None:
-                    post_date = post_date.replace(tzinfo=timezone.utc)
-            except ValueError:
-                post_date = datetime(1970, 1, 1, tzinfo=timezone.utc)
-
-            # 기간 필터
-            from_aware = from_date.replace(tzinfo=timezone.utc) if from_date.tzinfo is None else from_date
-            to_aware = to_date.replace(tzinfo=timezone.utc) if to_date.tzinfo is None else to_date
-            if not (from_aware <= post_date <= to_aware):
-                continue
-
-            gmv = video.get("gmv") or {}
-            gmv_amount = float(gmv.get("amount") or 0)
-            gmv_currency = gmv.get("currency") or ""
-            sku_orders = video.get("sku_orders") or 0
-            units_sold = video.get("units_sold") or 0
-            views = video.get("views") or 0
-            ctr = video.get("click_through_rate") or 0
-            products = video.get("products") or []
-            product_ids = ", ".join(str(p.get("id") or "") for p in products)
-            product_names = ", ".join(str(p.get("name") or "") for p in products)
-
-            row_data = [
-                "'" + video_id, post_time_str, video.get("username") or "", video.get("title") or "",
-                gmv_amount, gmv_currency, sku_orders, units_sold,
-                views, ctr, product_ids, product_names, updated_at
-            ]
-
-            if video_id in video_index_map:
-                if video_index_map[video_id] != "NEW":
-                    target_row = video_index_map[video_id]
-                    col_end = chr(ord("A") + len(HEADERS) - 1)
-                    batch_updates.append({
-                        "range": f"'{VIDEO_SHEET_NAME}'!A{target_row}:{col_end}{target_row}",
-                        "values": [row_data]
-                    })
-                    update_count += 1
-            else:
-                append_rows.append(row_data)
-                video_index_map[video_id] = "NEW"
-                new_count += 1
-
-        new_token = result.get("data", {}).get("next_page_token") or None
-        if not new_token or new_token == page_token:
-            break
-        page_token = new_token
-        page_count += 1
-        time.sleep(0.3)
+    col_end = chr(ord("A") + len(HEADERS) - 1)
+    for video_id, m in merged.items():
+        ctr = (m["ctr_w"] / m["views"]) if m["views"] else m["ctr_last"]   # 조회수 가중 평균 CTR
+        row_data = [
+            "'" + video_id, m["post"], m["user"], m["title"],
+            round(m["gmv"], 2), m["cur"], int(m["sku"]), int(m["units"]),
+            int(m["views"]), ctr, m["pids"], m["pnames"], updated_at
+        ]
+        if video_id in video_index_map:
+            target_row = video_index_map[video_id]
+            batch_updates.append({
+                "range": f"'{VIDEO_SHEET_NAME}'!A{target_row}:{col_end}{target_row}",
+                "values": [row_data]
+            })
+            update_count += 1
+        else:
+            append_rows.append(row_data)
+            new_count += 1
 
     # ─── 시트 쓰기 ───
     spreadsheet = sheet.spreadsheet
@@ -302,7 +350,7 @@ def run_sync(from_date: datetime, to_date: datetime):
 
     if aborted:
         print(f"\n⚠️ 일부만 반영: 업데이트 {update_count}건 / 신규 {new_count}건 — "
-              f"페이지 {page_count + 1} 이후 미수집, 실패로 종료")
+              f"페이지 {last_page}부터 미수집, 실패로 종료")
         raise SystemExit(1)
 
     print(f"\n✅ 완료! 업데이트 {update_count}건 / 신규 {new_count}건 (맨 아래 추가, 재정렬 없음)")
