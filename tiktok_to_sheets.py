@@ -196,6 +196,7 @@ def run_sync(from_date: datetime, to_date: datetime):
     page_count = 0
     update_count = 0
     new_count = 0
+    aborted = False
 
     # 배치 업데이트용 버퍼
     batch_updates: list[dict] = []  # {"range": "A2:M2", "values": [[...]]}
@@ -205,8 +206,20 @@ def run_sync(from_date: datetime, to_date: datetime):
         print(f"  페이지 {page_count + 1} 요청 중... (page_token={page_token})")
         result = fetch_video_performance(from_date, to_date, page_token)
 
+        # TikTok 일시적 서버 오류(36009003 등)로 3회 연속 실패하면,
+        # 처음부터 다시 받지 않고 '같은 페이지'부터 더 길게 기다렸다가 이어서 받는다.
+        for wait in (30, 60, 120, 180):
+            if result:
+                break
+            print(f"  페이지 {page_count + 1} 실패 — {wait}초 후 같은 페이지부터 이어서 재시도")
+            time.sleep(wait)
+            result = fetch_video_performance(from_date, to_date, page_token)
+
         if not result:
-            print("  API 오류 - 중단")
+            # 예전엔 여기서 조용히 멈추고 '완료'로 끝나서, 뒤쪽 페이지 영상(갱신·신규)이 통째로 빠졌다.
+            # 받은 만큼은 기록하되(영상별 값은 한 번의 조회 결과라 정확함) 실패로 종료 → 워크플로우가 재실행.
+            print(f"  ❌ API 오류 - 페이지 {page_count + 1}에서 중단 (받은 영상까지만 기록 후 실패로 종료)")
+            aborted = True
             break
 
         videos = result.get("data", {}).get("videos") or []
@@ -286,6 +299,11 @@ def run_sync(from_date: datetime, to_date: datetime):
 
     # ⚠️ 재정렬 없음 (의도적): 기존 행은 제자리에서 값만 갱신, 신규는 무조건 맨 아래로만 차곡차곡.
     #    → 행이 갑자기 바뀌거나 과거날짜 신규가 중간에 끼어드는 일이 없고, N열 이후 수동 열도 안 어긋난다.
+
+    if aborted:
+        print(f"\n⚠️ 일부만 반영: 업데이트 {update_count}건 / 신규 {new_count}건 — "
+              f"페이지 {page_count + 1} 이후 미수집, 실패로 종료")
+        raise SystemExit(1)
 
     print(f"\n✅ 완료! 업데이트 {update_count}건 / 신규 {new_count}건 (맨 아래 추가, 재정렬 없음)")
 

@@ -110,9 +110,22 @@ def fetch_window(start: str, end: str) -> dict[str, dict]:
         token = None
         shrink = False
         while True:
-            d = api_get({"start_date_ge": cs, "end_date_lt": ce, "page_size": "100",
-                         "account_type": "ALL", "sort_field": "gmv", "sort_order": "DESC",
-                         **({"page_token": token} if token else {})})
+            q = {"start_date_ge": cs, "end_date_lt": ce, "page_size": "100",
+                 "account_type": "ALL", "sort_field": "gmv", "sort_order": "DESC",
+                 **({"page_token": token} if token else {})}
+            d = api_get(q)
+            # 일시적 서버 오류로 3회 실패하면 같은 페이지부터 더 길게 기다렸다가 이어서 재시도
+            for wait in (30, 60, 120, 180):
+                if d:
+                    break
+                print(f"  [재시도] {cs}~{ce} 페이지 실패 — {wait}초 후 같은 페이지부터", flush=True)
+                time.sleep(wait)
+                d = api_get(q)  # api_get이 매번 새 timestamp로 서명
+            if not d:
+                # 청크 일부만 받은 채 진행하면 청크 합산값(GMV·뷰 등)이 실제보다 작게 덮어써진다
+                # → 시트를 건드리지 않고 실패로 종료(워크플로우가 재실행)
+                print(f"  ❌ {cs}~{ce} 조회 중단 — 합산값 손상 방지를 위해 시트 쓰기 없이 실패 종료", flush=True)
+                sys.exit(1)
             if d and d.get("__range_error__") and chunk > 7:
                 chunk = 7
                 shrink = True
