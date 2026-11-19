@@ -66,12 +66,36 @@ export default async function Dashboard({ searchParams }: { searchParams: Promis
 
   return (
     <>
-      <div className="page-head">
-        <h1>Agreements</h1>
-        <Link href="/deals/new" className="btn btn-primary">
-          + New agreement
-        </Link>
-      </div>
+      <header className="hero">
+        <div className="hero-top">
+          <div>
+            <p className="kicker">d&apos;Alba · creator partnerships</p>
+            <h1>Agreements</h1>
+          </div>
+          <Link href="/deals/new" className="btn btn-primary">
+            + New agreement
+          </Link>
+        </div>
+        <p className="hero-sub">Every creator contract and invoice in one place: who has signed, what is waiting on us, and when each payment goes out.</p>
+        <dl className="hero-stats">
+          <div>
+            <dt>In progress</dt>
+            <dd>{active.length}</dd>
+          </div>
+          <div>
+            <dt>Need you</dt>
+            <dd>{todoCount}</dd>
+          </div>
+          <div>
+            <dt>Completed</dt>
+            <dd>{scoped.filter(isDone).length}</dd>
+          </div>
+          <div>
+            <dt>Creators</dt>
+            <dd>{new Set(scoped.map((d) => d.fields.handle.toLowerCase())).size}</dd>
+          </div>
+        </dl>
+      </header>
 
       <div className="toolbar">
         <div className="seg" role="group" aria-label="Scope">

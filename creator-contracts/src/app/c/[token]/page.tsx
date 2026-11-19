@@ -57,9 +57,10 @@ export default async function CreatorPage({ params }: { params: Promise<{ token:
 
   return (
     <Shell>
-      <header className="creator-head">
-        <h1>Agreement for @{deal.fields.handle}</h1>
-        <p>Review the agreement, add your payment details, and type your name to sign. It takes about three minutes. No download or printing needed.</p>
+      <header className="hero">
+        <p className="kicker">d&apos;Alba · creator agreement</p>
+        <h1>@{deal.fields.handle}</h1>
+        <p className="hero-sub">Review the agreement, add your payment details, and type your name to sign. It takes about three minutes. No download or printing needed.</p>
       </header>
       {deal.change_request && (
         <div className="alert alert-info">
