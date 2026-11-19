@@ -17,7 +17,7 @@
 - Next.js (App Router) + Vercel Blob(비공개 스토어) + `@react-pdf/renderer`
 - 매니저: 계정 로그인 없음. 팀 공용 접근 코드(`APP_KEY`)와 본인 이름을 브라우저당 한 번 입력
 - 크리에이터: 추측 불가능한 토큰 링크 (`/c/<id>.<secret>`)
-- 저장 구조: `deals/<id>.json`(딜 전체), `index.json`(대시보드용 요약), `stamped/<id>.pdf`(직인본)
+- 저장 구조: `deals/<id>.json`(딜 전체), `stamped/<id>.pdf`(직인본)
 - 은행 정보는 AES-256-GCM으로 암호화해 저장
 - 서명 시 시각, IP, 브라우저, 문서 SHA-256을 기록해 PDF 마지막 장에 넣음
 - 계약서 기본 조항은 `src/lib/template.ts`의 `DEFAULT_CLAUSES`

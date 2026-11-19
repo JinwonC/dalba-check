@@ -1,11 +1,10 @@
 import crypto from "node:crypto";
 import { decryptJson } from "./crypto";
-import { mutate, readText } from "./store";
+import { listKeys, mutate, readText } from "./store";
 import { customCount, type Billing, type Clause, type Fields, type Signature } from "./template";
 
 // Storage layout (private store):
 //   deals/<id>.json   full deal document, including its activity log
-//   index.json        one summary row per deal, for the dashboard
 //   stamped/<id>.pdf  company-stamped final PDF
 
 export type Stamps = {
@@ -50,7 +49,6 @@ export type Summary = Stamps & {
 const ID = /^[A-Za-z0-9_-]{16}$/;
 const dealKey = (id: string) => `deals/${id}.json`;
 export const stampedKey = (id: string) => `stamped/${id}.pdf`;
-const INDEX = "index.json";
 
 export const now = () => new Date().toISOString();
 export const linkToken = (d: { id: string; secret: string }) => `${d.id}.${d.secret}`;
@@ -61,14 +59,39 @@ function summarize(d: Deal): Summary {
   return { ...rest, custom: customCount(clauses) };
 }
 
-async function reindex(d: Deal) {
-  await mutate<Summary[]>(INDEX, (list) => [summarize(d), ...(list ?? []).filter((x) => x.id !== d.id)]);
+// Dashboard cache, per server instance: a deal is re-read only when the
+// store reports a new version of its document.
+const g = globalThis as unknown as { __deals?: Map<string, { version: string; summary: Summary }>; __fresh?: Map<string, Summary> };
+const cache = (g.__deals ??= new Map());
+// Deals this instance just wrote, in case the listing lags behind the write.
+const fresh = (g.__fresh ??= new Map());
+
+function remember(d: Deal) {
+  fresh.set(d.id, summarize(d));
 }
 
 export async function listDeals(): Promise<Summary[]> {
-  const entry = await readText(INDEX);
-  const list = entry ? (JSON.parse(entry.text) as Summary[]) : [];
-  return list.sort((a, b) => b.created_at.localeCompare(a.created_at));
+  const keys = await listKeys("deals/");
+  const todo = keys.filter((k) => cache.get(k.key)?.version !== k.version);
+  for (let i = 0; i < todo.length; i += 25) {
+    await Promise.all(
+      todo.slice(i, i + 25).map(async (k) => {
+        const entry = await readText(k.key);
+        if (entry) cache.set(k.key, { version: k.version, summary: summarize(JSON.parse(entry.text) as Deal) });
+      }),
+    );
+  }
+  const byId = new Map<string, Summary>();
+  for (const k of keys) {
+    const hit = cache.get(k.key);
+    if (hit) byId.set(hit.summary.id, hit.summary);
+  }
+  for (const [id, s] of fresh) {
+    const listed = byId.get(id);
+    if (!listed || listed.updated_at < s.updated_at) byId.set(id, s);
+    else fresh.delete(id);
+  }
+  return [...byId.values()].sort((a, b) => b.created_at.localeCompare(a.created_at));
 }
 
 export async function getDeal(id: string): Promise<Deal | null> {
@@ -115,7 +138,7 @@ export async function createDeal(manager: string, fields: Fields, clauses: Claus
     events: [{ at: t, actor: manager, type: "created" }, ...(send ? [{ at: t, actor: manager, type: "link_created" }] : [])],
   };
   await mutate<Deal>(dealKey(deal.id), () => deal);
-  await reindex(deal);
+  remember(deal);
   return deal;
 }
 
@@ -139,7 +162,7 @@ export async function updateDeal(
     return cur;
   });
   if ("error" in res) return res;
-  await reindex(res.value);
+  remember(res.value);
   return { deal: res.value };
 }
 
