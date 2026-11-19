@@ -1,7 +1,7 @@
 import crypto from "node:crypto";
 import { decryptJson } from "./crypto";
 import { listKeys, mutate, readText } from "./store";
-import { customCount, itemsOf, type Billing, type Clause, type Fields, type Signature } from "./template";
+import { customCount, type Billing, type Clause, type Fields, type Signature } from "./template";
 
 // Storage layout (private store):
 //   deals/<id>.json   full deal document, including its activity log
@@ -23,48 +23,6 @@ export type Stamps = {
   change_requested_at: string | null;
 };
 
-// ---- Videos ------------------------------------------------------------------
-// Each contracted video is a slot. The creator submits a draft link, we approve
-// it or ask for a revision, and after posting the creator submits the live link.
-
-export type VideoStatus = "empty" | "review" | "revise" | "approved" | "posted";
-
-export type VideoState = {
-  status: VideoStatus;
-  draft_url?: string;
-  draft_note?: string;
-  draft_at?: string;
-  feedback?: string;
-  reviewed_at?: string;
-  reviewed_by?: string;
-  live_url?: string;
-  spark_code?: string;
-  posted_at?: string;
-};
-
-export type VideoSlot = VideoState & { id: string; product: string; n: number; of: number };
-export type VideoCounts = { total: number; review: number; revise: number; approved: number; posted: number };
-
-export function videoSlots(d: { fields: Fields; videos?: Record<string, VideoState> }): VideoSlot[] {
-  const out: VideoSlot[] = [];
-  itemsOf(d.fields).forEach((item, i) => {
-    for (let n = 1; n <= item.count; n++) {
-      const id = `${i}-${n}`;
-      out.push({ status: "empty", ...(d.videos?.[id] ?? {}), id, product: item.product, n, of: item.count });
-    }
-  });
-  return out;
-}
-
-export function videoCounts(d: { fields: Fields; videos?: Record<string, VideoState> }): VideoCounts {
-  const c: VideoCounts = { total: 0, review: 0, revise: 0, approved: 0, posted: 0 };
-  for (const v of videoSlots(d)) {
-    c.total++;
-    if (v.status !== "empty") c[v.status]++;
-  }
-  return c;
-}
-
 export type DealEvent = { at: string; actor: string; type: string; detail?: string };
 
 export type Deal = Stamps & {
@@ -78,7 +36,6 @@ export type Deal = Stamps & {
   invoice_number: string | null;
   change_request: string | null;
   stamped_pdf_name: string | null;
-  videos?: Record<string, VideoState>;
   events: DealEvent[];
 };
 
@@ -89,7 +46,6 @@ export type Summary = Stamps & {
   manager: string;
   fields: Fields;
   custom: number;
-  vc: VideoCounts;
 };
 
 const ID = /^[A-Za-z0-9_-]{16}$/;
@@ -100,9 +56,9 @@ export const now = () => new Date().toISOString();
 export const linkToken = (d: { id: string; secret: string }) => `${d.id}.${d.secret}`;
 
 function summarize(d: Deal): Summary {
-  const { clauses, billing_enc, signature, invoice_number, change_request, stamped_pdf_name, events, videos, ...rest } = d;
-  void billing_enc, signature, invoice_number, change_request, stamped_pdf_name, events, videos;
-  return { ...rest, custom: customCount(clauses), vc: videoCounts(d) };
+  const { clauses, billing_enc, signature, invoice_number, change_request, stamped_pdf_name, events, ...rest } = d;
+  void billing_enc, signature, invoice_number, change_request, stamped_pdf_name, events;
+  return { ...rest, custom: customCount(clauses) };
 }
 
 // Dashboard cache, per server instance: a deal is re-read only when the
@@ -264,17 +220,7 @@ export function transferOverdue(d: Stamps): boolean {
 /** Who has to move next, and what they have to do. */
 export type Next = { owner: "you" | "creator" | "finance" | "none"; text: string };
 
-export function nextAction(d: Stamps, vc?: VideoCounts): Next {
-  const base = baseAction(d, vc);
-  // Drafts waiting for our approval always need us, whatever stage the paperwork is in.
-  if (vc && vc.review > 0 && d.signed_at && !d.content_done_at && !d.cancelled_at) {
-    const review = `Review ${vc.review} draft${vc.review > 1 ? "s" : ""}`;
-    return { owner: "you", text: base.owner === "you" ? `${base.text} · ${review.toLowerCase()}` : review };
-  }
-  return base;
-}
-
-function baseAction(d: Stamps, vc?: VideoCounts): Next {
+export function nextAction(d: Stamps): Next {
   switch (stageOf(d)) {
     case "draft":
       return { owner: "you", text: "Finish the terms and create the link" };
@@ -285,8 +231,7 @@ function baseAction(d: Stamps, vc?: VideoCounts): Next {
     case "stamp":
       return { owner: "you", text: "Get the company stamp, then mark it received" };
     case "content":
-      if (vc && vc.total > 0 && vc.posted >= vc.total) return { owner: "you", text: "All videos posted. Mark content complete" };
-      return { owner: "creator", text: vc ? `Delivering content (${vc.posted}/${vc.total} posted)` : "Delivering content" };
+      return { owner: "creator", text: "Delivering content. Mark complete when done" };
     case "transfer":
       return { owner: "you", text: "Request the transfer and record the dates" };
     case "payout":

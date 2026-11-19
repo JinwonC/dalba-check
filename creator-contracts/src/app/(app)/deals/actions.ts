@@ -3,8 +3,7 @@
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { requireUser } from "@/lib/session";
-import { createDeal, now, stampedKey, updateDeal, videoSlots, type Deal } from "@/lib/deals";
-import { cleanUrl } from "@/lib/url-check";
+import { createDeal, now, stampedKey, updateDeal, type Deal } from "@/lib/deals";
 import { writeBytes } from "@/lib/store";
 import { defaultFields, joinNames, type Clause, type Fields, type Item } from "@/lib/template";
 
@@ -216,50 +215,4 @@ export async function uploadStamped(id: string, _prev: UploadResult | null, form
   revalidatePath("/");
   revalidatePath(`/deals/${id}`);
   return { ok: true };
-}
-
-export type VideoResult = { error: string } | undefined;
-
-/** Approve a submitted draft or send it back with feedback. */
-export async function reviewDraft(id: string, slotId: string, decision: "approve" | "revise", feedback: string): Promise<VideoResult> {
-  const user = await requireUser();
-  const note = String(feedback || "").trim().slice(0, 1000);
-  if (decision === "revise" && note.length < 3) return { error: "Tell the creator what to change." };
-  const res = await updateDeal(id, user.name, (d) => {
-    const slot = videoSlots(d).find((v) => v.id === slotId);
-    if (!slot) return { error: "Video not found." };
-    if (slot.status !== "review") return { error: "This draft is not waiting for review." };
-    const { id: _i, product, n, of: _o, ...state } = slot;
-    void _i, _o;
-    d.videos = { ...d.videos, [slotId]: { ...state, status: decision === "approve" ? "approved" : "revise", feedback: note || undefined, reviewed_at: now(), reviewed_by: user.name } };
-    return { event: decision === "approve" ? "draft_approved" : "draft_revision", detail: `${product} #${n}${note ? `: ${note}` : ""}` };
-  });
-  if (res && "error" in res) return res;
-  revalidatePath("/");
-  revalidatePath(`/deals/${id}`);
-}
-
-/** Record a live link on the creator's behalf (for links sent outside the site), or clear a slot. */
-export async function setVideoByManager(id: string, slotId: string, liveUrl: string): Promise<VideoResult> {
-  const user = await requireUser();
-  const url = liveUrl.trim() ? cleanUrl(liveUrl) : "";
-  if (liveUrl.trim() && !url) return { error: "Enter a full link starting with https://" };
-  const res = await updateDeal(id, user.name, (d) => {
-    const slot = videoSlots(d).find((v) => v.id === slotId);
-    if (!slot) return { error: "Video not found." };
-    if (!d.signed_at) return { error: "The creator has not signed yet." };
-    const { id: _i, product, n, of: _o, ...state } = slot;
-    void _i, _o;
-    if (!url) {
-      const rest = { ...d.videos };
-      delete rest[slotId];
-      d.videos = rest;
-      return { event: "video_reset", detail: `${product} #${n}` };
-    }
-    d.videos = { ...d.videos, [slotId]: { ...state, status: "posted", live_url: url, posted_at: now() } };
-    return { event: "video_posted", detail: `${product} #${n} (entered by ${user.name})` };
-  });
-  if (res && "error" in res) return res;
-  revalidatePath("/");
-  revalidatePath(`/deals/${id}`);
 }

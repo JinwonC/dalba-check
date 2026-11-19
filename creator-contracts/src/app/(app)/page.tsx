@@ -30,7 +30,7 @@ export default async function Dashboard({ searchParams }: { searchParams: Promis
 
   const scoped = all.filter((d) => scope === "all" || d.manager === user.name);
   const active = scoped.filter((d) => !isDone(d));
-  const mine = (d: Summary) => nextAction(d, d.vc).owner === "you";
+  const mine = (d: Summary) => nextAction(d).owner === "you";
   const perCreator = new Map<string, number>();
   for (const d of all) perCreator.set(d.fields.handle.toLowerCase(), (perCreator.get(d.fields.handle.toLowerCase()) ?? 0) + 1);
   const term = (sp.q || "").trim().toLowerCase();
@@ -159,7 +159,7 @@ export default async function Dashboard({ searchParams }: { searchParams: Promis
             <tbody>
               {rows.map((d) => {
                 const stage = stageOf(d);
-                const next = nextAction(d, d.vc);
+                const next = nextAction(d);
                 const contracts = perCreator.get(d.fields.handle.toLowerCase()) ?? 1;
                 const done = isDone(d);
                 const days = daysSince(waitingSince(d));
@@ -196,12 +196,6 @@ export default async function Dashboard({ searchParams }: { searchParams: Promis
                     <td>
                       {plain ? <span className="pill pill-neutral">{STAGE_LABEL[stage]}</span> : <Stepper done={stepsDone(d)} />}
                       {!plain && <div className="small stage-label">{STAGE_LABEL[stage]}</div>}
-                      {d.signed_at && !d.cancelled_at && (
-                        <div className="small muted">
-                          Videos {d.vc.posted}/{d.vc.total}
-                          {d.vc.review > 0 && <span className="need"> · {d.vc.review} to review</span>}
-                        </div>
-                      )}
                     </td>
                     <td>
                       {next.owner !== "none" && (

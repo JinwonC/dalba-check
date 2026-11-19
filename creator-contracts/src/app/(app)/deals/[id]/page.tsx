@@ -6,8 +6,7 @@ import CopyLink from "@/components/CopyLink";
 import StampUpload from "@/components/StampUpload";
 import { ContractDoc, InvoiceDoc } from "@/components/Document";
 import Stepper from "@/components/Stepper";
-import VideoReview from "@/components/VideoReview";
-import { STAGE_LABEL, billingOf, getDeal, linkToken, nextAction, stageOf, stepsDone, transferOverdue, videoCounts, videoSlots } from "@/lib/deals";
+import { STAGE_LABEL, billingOf, getDeal, linkToken, nextAction, stageOf, stepsDone, transferOverdue } from "@/lib/deals";
 import { clauseState, DEFAULT_CLAUSES, itemsOf, longDate, medDate, money } from "@/lib/template";
 import { origin } from "@/lib/url";
 import PaymentRequest from "@/components/PaymentRequest";
@@ -30,11 +29,6 @@ const EVENT_LABEL: Record<string, string> = {
   invoice_issued: "Invoice issued",
   content_done: "Content confirmed complete",
   content_done_undone: "Content confirmation undone",
-  draft_submitted: "Creator submitted a draft",
-  draft_approved: "Draft approved",
-  draft_revision: "Revision requested",
-  video_posted: "Video posted",
-  video_reset: "Video reset",
   payment_requested: "Transfer requested",
   payment_date_changed: "Expected transfer date changed",
   payment_request_cleared: "Transfer request undone",
@@ -73,8 +67,7 @@ export default async function DealPage({ params }: { params: Promise<{ id: strin
   const events = [...deal.events].reverse();
   const f = deal.fields;
   const stage = stageOf(deal);
-  const vc = videoCounts(deal);
-  const next = nextAction(deal, vc);
+  const next = nextAction(deal);
   const overdue = transferOverdue(deal);
   const billing = billingOf(deal);
   const link = `${base}/c/${linkToken(deal)}`;
@@ -173,7 +166,7 @@ export default async function DealPage({ params }: { params: Promise<{ id: strin
 
             <Step done={!!deal.content_done_at} current={stage === "content"} title="3. Creator delivers the content" at={deal.content_done_at}>
               <p>
-                {vc.posted} of {vc.total} videos posted. When the creator has delivered everything in the agreement, confirm it here.
+                When all {f.deliverableCount} videos are posted and the creator has met the agreement, confirm it here.
               </p>
               <div className="row">
                 <ConfirmButton action={markContentDone.bind(null, id)} className="btn btn-primary">
@@ -215,20 +208,9 @@ export default async function DealPage({ params }: { params: Promise<{ id: strin
         </section>
       )}
 
-      {signed && !cancelled && (
+      {!cancelled && (
         <section className="card">
-          <h2>
-            Videos <span className="muted small">· {vc.posted}/{vc.total} posted{vc.review > 0 && ` · ${vc.review} to review`}</span>
-          </h2>
-          <p className="hint">The creator submits drafts and posted links on their own page (the same link they signed with). Posting window ends {longDate(f.endDate)}.</p>
-          <CopyLink url={link} />
-          <VideoReview dealId={id} slots={videoSlots(deal)} />
-        </section>
-      )}
-
-      {!signed && !cancelled && (
-        <section className="card">
-          <h2>Products</h2>
+          <h2>Products · {medDate(f.startDate)} to {medDate(f.endDate)}</h2>
           <ul className="files">
             {itemsOf(f).map((it, n) => (
               <li key={n}>
@@ -283,7 +265,6 @@ export default async function DealPage({ params }: { params: Promise<{ id: strin
               <span className="muted small">{when(e.at)}</span>
               <span>
                 {EVENT_LABEL[e.type] ?? e.type}
-                {e.detail && ["draft_submitted", "draft_approved", "draft_revision", "video_posted", "video_reset"].includes(e.type) && <span className="muted small"> · {e.detail}</span>}
                 <span className="muted small"> · {e.actor}</span>
               </span>
             </li>
