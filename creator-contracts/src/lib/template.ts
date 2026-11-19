@@ -4,6 +4,8 @@
 
 export const CLIENT_NAME = "d'Alba Global Co., Ltd";
 
+export type Item = { product: string; count: number };
+
 export type Fields = {
   talentName: string; // "Talent / Agency" row, usually the handle
   handle: string; // without @
@@ -12,10 +14,11 @@ export type Fields = {
   effectiveDate: string; // yyyy-mm-dd
   startDate: string;
   endDate: string;
-  deliverableCount: number;
+  items: Item[]; // products in this contract and how many videos each gets
+  deliverableCount: number; // total across items (kept in sync when saving)
   deliverableType: string;
   paidUsageDays: number;
-  product: string;
+  product: string; // all product names joined (kept in sync when saving)
   currency: "USD" | "GBP" | "EUR";
   fee: number;
   commissionPct: number;
@@ -69,6 +72,7 @@ export function defaultFields(): Fields {
     effectiveDate: "",
     startDate: "",
     endDate: "",
+    items: [{ product: "", count: 10 }],
     deliverableCount: 10,
     deliverableType: "TikTok shoppable videos",
     paidUsageDays: 30,
@@ -168,6 +172,37 @@ export function shortDate(iso: string | Date | null | undefined): string {
   const d = new Date(iso);
   if (isNaN(d.getTime())) return "";
   return `${String(d.getUTCMonth() + 1).padStart(2, "0")}/${String(d.getUTCDate()).padStart(2, "0")}/${d.getUTCFullYear()}`;
+}
+
+/** Products of a deal. Older deals stored a single product and count. */
+export function itemsOf(f: Fields): Item[] {
+  if (Array.isArray(f.items) && f.items.length) return f.items;
+  return [{ product: f.product || "", count: Number(f.deliverableCount) || 0 }];
+}
+
+export function totalVideos(f: Fields): number {
+  return itemsOf(f).reduce((n, i) => n + (Number(i.count) || 0), 0);
+}
+
+/** "A", "A and B", "A, B and C" */
+export function joinNames(names: string[]): string {
+  const n = names.filter(Boolean);
+  if (n.length <= 1) return n[0] ?? "";
+  return `${n.slice(0, -1).join(", ")} and ${n[n.length - 1]}`;
+}
+
+/** Per-product lines for the summary table, only when there is more than one product. */
+export function itemLines(f: Fields): string[] {
+  const items = itemsOf(f);
+  return items.length > 1 ? items.map((i) => `${i.count} x ${i.product}`) : [];
+}
+
+/** "Sep 30, 2026" */
+export function medDate(iso: string | null | undefined): string {
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(iso || "");
+  if (!m) return "";
+  const mon = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"][Number(m[2]) - 1];
+  return `${mon} ${Number(m[3])}, ${m[1]}`;
 }
 
 export function deliverables(f: Fields): string {

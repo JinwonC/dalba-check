@@ -2,6 +2,7 @@ import {
   CLIENT_NAME,
   campaignName,
   deliverables,
+  itemLines,
   fill,
   longDate,
   money,
@@ -83,6 +84,11 @@ export function ContractDoc({
               <div>Date: {dash(longDate(fields.startDate))}</div>
               <div>Duration: {dash(longDate(fields.endDate))}</div>
               <div>Deliverable Details: {deliverables(fields)}</div>
+              {itemLines(fields).map((l) => (
+                <div key={l} className="doc-item">
+                  {l}
+                </div>
+              ))}
               <div>Paid Usage: {fields.paidUsageDays} days</div>
             </td>
           </tr>

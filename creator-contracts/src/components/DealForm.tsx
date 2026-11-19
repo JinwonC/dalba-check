@@ -4,12 +4,19 @@ import { useState, useTransition } from "react";
 import Link from "next/link";
 import { saveDeal } from "@/app/(app)/deals/actions";
 import { ContractDoc } from "@/components/Document";
-import { COUNTRIES, DEFAULT_CLAUSES, PLACEHOLDERS, clauseState, type Clause, type Fields } from "@/lib/template";
+import { COUNTRIES, DEFAULT_CLAUSES, PLACEHOLDERS, clauseState, itemsOf, joinNames, type Clause, type Fields, type Item } from "@/lib/template";
 
 type Props = { dealId: string | null; initialFields: Fields; initialClauses: Clause[]; live: boolean };
 
 export default function DealForm({ dealId, initialFields, initialClauses, live }: Props) {
-  const [f, setF] = useState<Fields>(initialFields);
+  const [f, setFields] = useState<Fields>({ ...initialFields, items: itemsOf(initialFields) });
+  // Keep the joined product name and total in sync so the preview is always right.
+  const setF = (fn: (p: Fields) => Fields) =>
+    setFields((p) => {
+      const n = fn(p);
+      return { ...n, product: joinNames(n.items.map((i) => i.product)), deliverableCount: n.items.reduce((t, i) => t + (Number(i.count) || 0), 0) };
+    });
+  const setItem = (idx: number, patch: Partial<Item>) => setF((p) => ({ ...p, items: p.items.map((it, i) => (i === idx ? { ...it, ...patch } : it)) }));
   const [clauses, setClauses] = useState<Clause[]>(initialClauses);
   const [open, setOpen] = useState<string | null>(null);
   const [tab, setTab] = useState<"edit" | "preview">("edit");
@@ -98,10 +105,27 @@ export default function DealForm({ dealId, initialFields, initialClauses, live }
           <section className="card">
             <h2>Deal terms</h2>
             <div className="grid">
-              <label className="field span-2">
-                <span>Product *</span>
-                <input {...text("product")} placeholder="White Truffle First Spray Serum Holiday Gift Set (3+2+1)" />
-              </label>
+              <div className="span-2 items">
+                <div className="items-head">
+                  <span>Product *</span>
+                  <span>Videos *</span>
+                </div>
+                {f.items.map((it, i) => (
+                  <div key={i} className="items-row">
+                    <input value={it.product} onChange={(e) => setItem(i, { product: e.target.value })} placeholder="White Truffle First Spray Serum Holiday Gift Set (3+2+1)" aria-label={`Product ${i + 1}`} />
+                    <input type="number" min={0} value={it.count === 0 ? "" : it.count} onChange={(e) => setItem(i, { count: e.target.value === "" ? 0 : Number(e.target.value) })} aria-label={`Videos for product ${i + 1}`} />
+                    <button type="button" className="btn btn-ghost btn-sm" onClick={() => setF((p) => ({ ...p, items: p.items.filter((_, j) => j !== i) }))} disabled={f.items.length === 1} aria-label="Remove product">
+                      ✕
+                    </button>
+                  </div>
+                ))}
+                <div className="row">
+                  <button type="button" className="btn btn-sm" onClick={() => setF((p) => ({ ...p, items: [...p.items, { product: "", count: 0 }] }))}>
+                    + Add product
+                  </button>
+                  <span className="muted small">Total: {f.deliverableCount} videos</span>
+                </div>
+              </div>
               <label className="field">
                 <span>Effective date *</span>
                 <input {...text("effectiveDate")} type="date" />
@@ -117,10 +141,6 @@ export default function DealForm({ dealId, initialFields, initialClauses, live }
               <label className="field">
                 <span>Content completed by *</span>
                 <input {...text("endDate")} type="date" />
-              </label>
-              <label className="field">
-                <span>Number of deliverables *</span>
-                <input {...number("deliverableCount")} />
               </label>
               <label className="field">
                 <span>Deliverable type</span>

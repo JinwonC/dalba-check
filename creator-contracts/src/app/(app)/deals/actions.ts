@@ -3,15 +3,20 @@
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { requireUser } from "@/lib/session";
-import { createDeal, now, stampedKey, updateDeal, type Deal } from "@/lib/deals";
+import { createDeal, now, stampedKey, updateDeal, videoSlots, type Deal } from "@/lib/deals";
+import { cleanUrl } from "@/lib/url-check";
 import { writeBytes } from "@/lib/store";
-import { defaultFields, type Clause, type Fields } from "@/lib/template";
+import { defaultFields, joinNames, type Clause, type Fields, type Item } from "@/lib/template";
 
 function cleanFields(input: Partial<Fields>): Fields {
   const d = defaultFields();
   const str = (v: unknown, max = 300) => String(v ?? "").trim().slice(0, max);
   const num = (v: unknown) => (Number.isFinite(Number(v)) && Number(v) >= 0 ? Number(v) : 0);
   const handle = str(input.handle, 80).replace(/^@+/, "");
+  const items: Item[] = (Array.isArray(input.items) ? input.items : [])
+    .slice(0, 20)
+    .map((i) => ({ product: str(i?.product, 200), count: Math.min(200, Math.round(num(i?.count))) }))
+    .filter((i) => i.product || i.count);
   return {
     handle,
     talentName: str(input.talentName, 120) || handle,
@@ -20,10 +25,11 @@ function cleanFields(input: Partial<Fields>): Fields {
     effectiveDate: str(input.effectiveDate, 10),
     startDate: str(input.startDate, 10),
     endDate: str(input.endDate, 10),
-    deliverableCount: Math.round(num(input.deliverableCount)),
+    items,
+    deliverableCount: items.reduce((n, i) => n + i.count, 0),
     deliverableType: str(input.deliverableType, 120) || d.deliverableType,
     paidUsageDays: Math.round(num(input.paidUsageDays)),
-    product: str(input.product, 300),
+    product: joinNames(items.map((i) => i.product)),
     currency: (["USD", "GBP", "EUR"] as const).includes(input.currency as Fields["currency"]) ? (input.currency as Fields["currency"]) : "USD",
     fee: num(input.fee),
     commissionPct: num(input.commissionPct),
@@ -47,8 +53,8 @@ function missingForSend(f: Fields, clauses: Clause[]): string[] {
   if (!f.effectiveDate) miss.push("effective date");
   if (!f.startDate) miss.push("start date");
   if (!f.endDate) miss.push("end date");
-  if (!f.product) miss.push("product");
-  if (!f.deliverableCount) miss.push("number of deliverables");
+  if (!f.items.length || f.items.some((i) => !i.product)) miss.push("product name");
+  if (!f.items.length || f.items.some((i) => !i.count)) miss.push("number of videos per product");
   if (!(f.fee > 0)) miss.push("fee");
   if (!clauses.length) miss.push("at least one clause");
   return miss;
@@ -210,4 +216,50 @@ export async function uploadStamped(id: string, _prev: UploadResult | null, form
   revalidatePath("/");
   revalidatePath(`/deals/${id}`);
   return { ok: true };
+}
+
+export type VideoResult = { error: string } | undefined;
+
+/** Approve a submitted draft or send it back with feedback. */
+export async function reviewDraft(id: string, slotId: string, decision: "approve" | "revise", feedback: string): Promise<VideoResult> {
+  const user = await requireUser();
+  const note = String(feedback || "").trim().slice(0, 1000);
+  if (decision === "revise" && note.length < 3) return { error: "Tell the creator what to change." };
+  const res = await updateDeal(id, user.name, (d) => {
+    const slot = videoSlots(d).find((v) => v.id === slotId);
+    if (!slot) return { error: "Video not found." };
+    if (slot.status !== "review") return { error: "This draft is not waiting for review." };
+    const { id: _i, product, n, of: _o, ...state } = slot;
+    void _i, _o;
+    d.videos = { ...d.videos, [slotId]: { ...state, status: decision === "approve" ? "approved" : "revise", feedback: note || undefined, reviewed_at: now(), reviewed_by: user.name } };
+    return { event: decision === "approve" ? "draft_approved" : "draft_revision", detail: `${product} #${n}${note ? `: ${note}` : ""}` };
+  });
+  if (res && "error" in res) return res;
+  revalidatePath("/");
+  revalidatePath(`/deals/${id}`);
+}
+
+/** Record a live link on the creator's behalf (for links sent outside the site), or clear a slot. */
+export async function setVideoByManager(id: string, slotId: string, liveUrl: string): Promise<VideoResult> {
+  const user = await requireUser();
+  const url = liveUrl.trim() ? cleanUrl(liveUrl) : "";
+  if (liveUrl.trim() && !url) return { error: "Enter a full link starting with https://" };
+  const res = await updateDeal(id, user.name, (d) => {
+    const slot = videoSlots(d).find((v) => v.id === slotId);
+    if (!slot) return { error: "Video not found." };
+    if (!d.signed_at) return { error: "The creator has not signed yet." };
+    const { id: _i, product, n, of: _o, ...state } = slot;
+    void _i, _o;
+    if (!url) {
+      const rest = { ...d.videos };
+      delete rest[slotId];
+      d.videos = rest;
+      return { event: "video_reset", detail: `${product} #${n}` };
+    }
+    d.videos = { ...d.videos, [slotId]: { ...state, status: "posted", live_url: url, posted_at: now() } };
+    return { event: "video_posted", detail: `${product} #${n} (entered by ${user.name})` };
+  });
+  if (res && "error" in res) return res;
+  revalidatePath("/");
+  revalidatePath(`/deals/${id}`);
 }

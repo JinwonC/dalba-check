@@ -6,6 +6,7 @@ import {
   CLIENT_NAME,
   campaignName,
   deliverables,
+  itemLines,
   fill,
   longDate,
   money,
@@ -128,6 +129,11 @@ function DealPdf({ fields, clauses, billing, signature, invoiceNumber, issueDate
             <Text style={[s.b, s.p]}>Date: {longDate(fields.startDate)}</Text>
             <Text style={[s.b, s.p]}>Duration: {longDate(fields.endDate)}</Text>
             <Text style={[s.b, s.p]}>Deliverable Details: {deliverables(fields)}</Text>
+            {itemLines(fields).map((l) => (
+              <Text key={l} style={[s.p, { paddingLeft: 12 }]}>
+                {l}
+              </Text>
+            ))}
             <Text style={s.b}>Paid Usage: {fields.paidUsageDays} days</Text>
           </Row>
           <Row label="Billing Information" last>

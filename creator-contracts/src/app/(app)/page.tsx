@@ -3,7 +3,7 @@ import { requireUser } from "@/lib/session";
 import CopyLink from "@/components/CopyLink";
 import Stepper from "@/components/Stepper";
 import { STAGE_LABEL, daysSince, isDone, linkToken, listDeals, nextAction, stageOf, stepsDone, transferOverdue, waitingSince, type Stage, type Summary } from "@/lib/deals";
-import { longDate, money } from "@/lib/template";
+import { itemsOf, longDate, medDate, money } from "@/lib/template";
 import { origin } from "@/lib/url";
 
 export const dynamic = "force-dynamic";
@@ -30,7 +30,9 @@ export default async function Dashboard({ searchParams }: { searchParams: Promis
 
   const scoped = all.filter((d) => scope === "all" || d.manager === user.name);
   const active = scoped.filter((d) => !isDone(d));
-  const mine = (d: Summary) => nextAction(d).owner === "you";
+  const mine = (d: Summary) => nextAction(d, d.vc).owner === "you";
+  const perCreator = new Map<string, number>();
+  for (const d of all) perCreator.set(d.fields.handle.toLowerCase(), (perCreator.get(d.fields.handle.toLowerCase()) ?? 0) + 1);
   const term = (sp.q || "").trim().toLowerCase();
 
   const rows = scoped
@@ -146,6 +148,7 @@ export default async function Dashboard({ searchParams }: { searchParams: Promis
             <thead>
               <tr>
                 <th>Creator</th>
+                <th>Contract</th>
                 <th>Progress</th>
                 <th>Next step</th>
                 <th>Waiting</th>
@@ -156,7 +159,8 @@ export default async function Dashboard({ searchParams }: { searchParams: Promis
             <tbody>
               {rows.map((d) => {
                 const stage = stageOf(d);
-                const next = nextAction(d);
+                const next = nextAction(d, d.vc);
+                const contracts = perCreator.get(d.fields.handle.toLowerCase()) ?? 1;
                 const done = isDone(d);
                 const days = daysSince(waitingSince(d));
                 const plain = stage === "cancelled" || stage === "draft";
@@ -168,13 +172,36 @@ export default async function Dashboard({ searchParams }: { searchParams: Promis
                       </Link>
                       <div className="muted small">
                         {money(d.fields.fee, d.fields.currency)}
-                        {d.fields.commissionPct > 0 && ` + ${d.fields.commissionPct}%`} · {d.fields.deliverableCount} videos · {d.fields.country}
-                        {d.custom > 0 && <span className="badge badge-warn">Custom terms</span>}
+                        {d.fields.commissionPct > 0 && ` + ${d.fields.commissionPct}%`} · {d.fields.country}
                       </div>
+                      {contracts > 1 && (
+                        <Link href={href({ q: d.fields.handle, bucket: undefined, todo: undefined, scope: "all" })} className="small linkish">
+                          {contracts} contracts
+                        </Link>
+                      )}
+                    </td>
+                    <td>
+                      <div className="nowrap">
+                        {medDate(d.fields.startDate) || "—"} → {medDate(d.fields.endDate) || "—"}
+                      </div>
+                      <ul className="plist">
+                        {itemsOf(d.fields).map((it, n) => (
+                          <li key={n}>
+                            <span className="pcount">{it.count}</span> <span className="pname">{it.product || "—"}</span>
+                          </li>
+                        ))}
+                      </ul>
+                      {d.custom > 0 && <span className="badge badge-warn" style={{ marginLeft: 0 }}>Custom terms</span>}
                     </td>
                     <td>
                       {plain ? <span className="pill pill-neutral">{STAGE_LABEL[stage]}</span> : <Stepper done={stepsDone(d)} />}
                       {!plain && <div className="small stage-label">{STAGE_LABEL[stage]}</div>}
+                      {d.signed_at && !d.cancelled_at && (
+                        <div className="small muted">
+                          Videos {d.vc.posted}/{d.vc.total}
+                          {d.vc.review > 0 && <span className="need"> · {d.vc.review} to review</span>}
+                        </div>
+                      )}
                     </td>
                     <td>
                       {next.owner !== "none" && (
