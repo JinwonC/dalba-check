@@ -108,16 +108,50 @@ export async function markStampRequested(id: string) {
 
 export async function markContentDone(id: string) {
   await change(id, (d) => {
-    if (!d.signed_at) return { error: "Not signed yet" };
-    if (d.content_done_at) return { error: "Invoice already issued" };
-    d.content_done_at = now();
-    return { event: "invoice_issued" };
+    if (!d.executed_at) return { error: "Upload the stamped agreement first" };
+    d.content_done_at ??= now();
+    return { event: "content_done" };
+  });
+}
+
+export async function undoContentDone(id: string) {
+  await change(id, (d) => {
+    if (d.payment_requested_at) return { error: "Transfer already requested" };
+    d.content_done_at = null;
+    return { event: "content_done_undone" };
+  });
+}
+
+/** Record that the transfer was requested internally and when it is expected to go out. */
+export async function setPaymentRequest(id: string, expected: string): Promise<{ error: string } | undefined> {
+  const user = await requireUser();
+  const date = String(expected || "").trim();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || isNaN(new Date(date).getTime())) return { error: "Choose the expected transfer date." };
+  const res = await updateDeal(id, user.name, (d) => {
+    if (!d.content_done_at) return { error: "Confirm the content is complete first." };
+    if (d.paid_at) return { error: "This deal is already marked as paid." };
+    const first = !d.payment_requested_at;
+    d.payment_requested_at ??= now();
+    d.payment_expected = date;
+    return { event: first ? "payment_requested" : "payment_date_changed", detail: date };
+  });
+  if ("error" in res) return res;
+  revalidatePath("/");
+  revalidatePath(`/deals/${id}`);
+}
+
+export async function clearPaymentRequest(id: string) {
+  await change(id, (d) => {
+    if (d.paid_at) return { error: "Already marked as paid" };
+    d.payment_requested_at = null;
+    d.payment_expected = null;
+    return { event: "payment_request_cleared" };
   });
 }
 
 export async function markPaid(id: string) {
   await change(id, (d) => {
-    if (!d.content_done_at) return { error: "Invoice not issued yet" };
+    if (!d.payment_requested_at) return { error: "Transfer not requested yet" };
     d.paid_at ??= now();
     return { event: "paid" };
   });

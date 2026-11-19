@@ -171,7 +171,7 @@ export function InvoiceDoc({
           </>
         )}
         <strong>Issue Date:</strong>{" "}
-        {issueDate ? shortDate(issueDate) : <span className="muted">set when all content has been posted</span>}
+        {issueDate ? shortDate(issueDate) : <span className="muted">the date you sign</span>}
       </p>
       <p>
         <strong>From</strong>

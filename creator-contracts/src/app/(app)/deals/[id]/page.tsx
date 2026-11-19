@@ -5,10 +5,12 @@ import ConfirmButton from "@/components/ConfirmButton";
 import CopyLink from "@/components/CopyLink";
 import StampUpload from "@/components/StampUpload";
 import { ContractDoc, InvoiceDoc } from "@/components/Document";
-import { CONTRACT_LABEL, INVOICE_LABEL, billingOf, contractStatus, getDeal, invoiceStatus, linkToken } from "@/lib/deals";
-import { clauseState, DEFAULT_CLAUSES, money } from "@/lib/template";
+import Stepper from "@/components/Stepper";
+import { STAGE_LABEL, billingOf, getDeal, linkToken, nextAction, stageOf, stepsDone, transferOverdue } from "@/lib/deals";
+import { clauseState, DEFAULT_CLAUSES, longDate, money } from "@/lib/template";
 import { origin } from "@/lib/url";
-import { cancelDeal, markContentDone, markPaid, markStampRequested, reassignToMe } from "../actions";
+import PaymentRequest from "@/components/PaymentRequest";
+import { cancelDeal, clearPaymentRequest, markContentDone, markPaid, markStampRequested, reassignToMe, undoContentDone } from "../actions";
 
 export const dynamic = "force-dynamic";
 
@@ -22,7 +24,12 @@ const EVENT_LABEL: Record<string, string> = {
   signed: "Creator signed",
   stamp_requested: "Company stamp requested",
   stamped_uploaded: "Stamped PDF uploaded",
-  invoice_issued: "Content complete · invoice issued",
+  invoice_issued: "Invoice issued",
+  content_done: "Content confirmed complete",
+  content_done_undone: "Content confirmation undone",
+  payment_requested: "Transfer requested",
+  payment_date_changed: "Expected transfer date changed",
+  payment_request_cleared: "Transfer request undone",
   paid: "Marked as paid",
   cancelled: "Cancelled",
   reassigned: "Manager changed",
@@ -31,7 +38,7 @@ const EVENT_LABEL: Record<string, string> = {
 const when = (d: string | null | undefined) =>
   d ? new Date(d).toLocaleString("en-US", { month: "short", day: "numeric", year: "numeric", hour: "2-digit", minute: "2-digit", timeZone: "UTC" }) + " UTC" : "";
 
-function Step({ done, current, title, at, children }: { done: boolean; current: boolean; title: string; at?: string | null; children?: React.ReactNode }) {
+function Step({ done, current, title, at, note, children }: { done: boolean; current: boolean; title: string; at?: string | null; note?: string; children?: React.ReactNode }) {
   return (
     <li className={done ? "step done" : current ? "step current" : "step"}>
       <span className="step-dot" aria-hidden>
@@ -41,6 +48,7 @@ function Step({ done, current, title, at, children }: { done: boolean; current: 
         <div className="step-title">
           {title}
           {done && at && <span className="muted small"> · {when(at)}</span>}
+          {done && note && <span className="muted small"> · {note}</span>}
         </div>
         {current && children && <div className="step-body">{children}</div>}
       </div>
@@ -56,8 +64,9 @@ export default async function DealPage({ params }: { params: Promise<{ id: strin
   const base = await origin();
   const events = [...deal.events].reverse();
   const f = deal.fields;
-  const c = contractStatus(deal);
-  const i = invoiceStatus(deal);
+  const stage = stageOf(deal);
+  const next = nextAction(deal);
+  const overdue = transferOverdue(deal);
   const billing = billingOf(deal);
   const link = `${base}/c/${linkToken(deal)}`;
   const cancelled = !!deal.cancelled_at;
@@ -88,8 +97,7 @@ export default async function DealPage({ params }: { params: Promise<{ id: strin
           </p>
         </div>
         <div className="row">
-          <span className="pill pill-neutral">{CONTRACT_LABEL[c]}</span>
-          {i !== "none" && !cancelled && <span className="pill pill-neutral">{INVOICE_LABEL[i]}</span>}
+          <span className="pill pill-neutral">{STAGE_LABEL[stage]}</span>
         </div>
       </div>
 
@@ -106,6 +114,12 @@ export default async function DealPage({ params }: { params: Promise<{ id: strin
       ) : (
         <section className="card">
           <h2>Progress</h2>
+          {stage !== "draft" && <Stepper done={stepsDone(deal)} labels />}
+          {next.owner !== "none" && (
+            <p className={next.owner === "you" ? "nextup nextup-you" : "nextup"}>
+              <strong>{next.owner === "you" ? "Your next step:" : next.owner === "creator" ? "Waiting on the creator:" : "Waiting on finance:"}</strong> {next.text}
+            </p>
+          )}
           <ol className="steps">
             <Step done={!!deal.sent_at} current={!deal.sent_at} title="Create the creator link" at={deal.sent_at}>
               <p>This is still a draft. Finish the terms, then create the link.</p>
@@ -114,7 +128,7 @@ export default async function DealPage({ params }: { params: Promise<{ id: strin
               </Link>
             </Step>
 
-            <Step done={signed} current={!!deal.sent_at && !signed} title="Creator reviews, adds bank details and signs" at={deal.signed_at}>
+            <Step done={signed} current={!!deal.sent_at && !signed} title="1. Creator signs the agreement and invoice" at={deal.signed_at}>
               {deal.change_request ? (
                 <div className="alert alert-warn">
                   <strong>Changes requested · {when(deal.change_requested_at)}</strong>
@@ -137,7 +151,7 @@ export default async function DealPage({ params }: { params: Promise<{ id: strin
               </div>
             </Step>
 
-            <Step done={!!deal.executed_at} current={signed && !deal.executed_at} title="Company stamp" at={deal.executed_at}>
+            <Step done={!!deal.executed_at} current={stage === "stamp"} title="2. Internal approval and company stamp" at={deal.executed_at}>
               <p>
                 1. Download the signed PDF and submit it to the internal system for the company seal.
                 <br />
@@ -158,20 +172,39 @@ export default async function DealPage({ params }: { params: Promise<{ id: strin
               <StampUpload dealId={id} />
             </Step>
 
-            <Step done={!!deal.content_done_at} current={signed && !deal.content_done_at} title="Content complete · issue invoice" at={deal.content_done_at}>
-              <p>When all {f.deliverableCount} videos are posted, issue the invoice. Today becomes the issue date; the creator does nothing more.</p>
-              <ConfirmButton action={markContentDone.bind(null, id)} className="btn btn-primary" confirm={`Confirm all content is posted and issue invoice ${deal.invoice_number ?? ""}?`}>
-                Content complete, issue invoice
+            <Step done={!!deal.content_done_at} current={stage === "content"} title="3. Creator delivers the content" at={deal.content_done_at}>
+              <p>
+                When all {f.deliverableCount} {f.deliverableType} are posted and the creator has met the agreement, confirm it here.
+              </p>
+              <ConfirmButton action={markContentDone.bind(null, id)} className="btn btn-primary" confirm="Confirm the creator has delivered everything in the agreement?">
+                Content complete
               </ConfirmButton>
             </Step>
 
-            <Step done={!!deal.paid_at} current={!!deal.content_done_at && !deal.paid_at} title="Payment" at={deal.paid_at}>
+            <Step done={!!deal.payment_requested_at} current={stage === "transfer"} title="4. Request the transfer" at={deal.payment_requested_at} note={deal.payment_expected && !deal.paid_at ? `expected ${longDate(deal.payment_expected)}` : undefined}>
               <p>
-                Invoice {deal.invoice_number} for {money(f.fee, f.currency)} is awaiting payment (net 30 from issue).
+                Request the transfer of {money(f.fee, f.currency)} internally (invoice {deal.invoice_number}), then record it here with the expected transfer date.
               </p>
-              <ConfirmButton action={markPaid.bind(null, id)} className="btn btn-primary" confirm="Mark this invoice as paid?">
-                Mark as paid
+              <PaymentRequest dealId={id} />
+              <ConfirmButton action={undoContentDone.bind(null, id)} className="btn btn-sm btn-ghost" confirm="Undo the content confirmation?">
+                Content was not complete, undo
               </ConfirmButton>
+            </Step>
+
+            <Step done={!!deal.paid_at} current={stage === "payout"} title="5. Transfer sent" at={deal.paid_at}>
+              <p>
+                Expected transfer date: <strong className={overdue ? "late" : ""}>{longDate(deal.payment_expected ?? "")}</strong>
+                {overdue && <span className="late"> (date has passed)</span>}
+              </p>
+              <div className="row">
+                <ConfirmButton action={markPaid.bind(null, id)} className="btn btn-primary" confirm="Mark this payment as sent?">
+                  Mark as paid
+                </ConfirmButton>
+                <ConfirmButton action={clearPaymentRequest.bind(null, id)} className="btn btn-sm btn-ghost" confirm="Undo the transfer request?">
+                  Undo request
+                </ConfirmButton>
+              </div>
+              <PaymentRequest dealId={id} current={deal.payment_expected} />
             </Step>
           </ol>
         </section>
@@ -183,7 +216,7 @@ export default async function DealPage({ params }: { params: Promise<{ id: strin
           <ul className="files">
             <li>
               <a href={`/api/deals/${id}/pdf`}>Signed agreement + invoice (PDF)</a>
-              <span className="muted small"> · creator signature, no company stamp{deal.content_done_at ? "" : ", invoice issue date blank until content is complete"}</span>
+              <span className="muted small"> · creator signature, no company stamp</span>
             </li>
             {deal.executed_at && (
               <li>
@@ -205,7 +238,7 @@ export default async function DealPage({ params }: { params: Promise<{ id: strin
         </summary>
         <div className="paper-wrap">
           <ContractDoc fields={f} clauses={deal.clauses} billing={billing} signature={deal.signature} />
-          {billing && <InvoiceDoc fields={f} billing={billing} invoiceNumber={deal.invoice_number} issueDate={deal.content_done_at} />}
+          {billing && <InvoiceDoc fields={f} billing={billing} invoiceNumber={deal.invoice_number} issueDate={deal.signed_at} />}
         </div>
       </details>
 

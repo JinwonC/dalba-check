@@ -41,7 +41,7 @@ export default async function CreatorPage({ params }: { params: Promise<{ token:
         </div>
         <div className="paper-wrap">
           <ContractDoc fields={deal.fields} clauses={deal.clauses} billing={billing} signature={deal.signature} />
-          <InvoiceDoc fields={deal.fields} billing={billing} invoiceNumber={deal.invoice_number} issueDate={deal.content_done_at} />
+          <InvoiceDoc fields={deal.fields} billing={billing} invoiceNumber={deal.invoice_number} issueDate={deal.signed_at} />
         </div>
       </Shell>
     );

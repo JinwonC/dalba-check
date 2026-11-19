@@ -15,7 +15,9 @@ export type Stamps = {
   signed_at: string | null;
   stamp_requested_at: string | null;
   executed_at: string | null;
-  content_done_at: string | null;
+  content_done_at: string | null; // creator fulfilled the deliverables
+  payment_requested_at: string | null;
+  payment_expected: string | null; // yyyy-mm-dd, the expected transfer date
   paid_at: string | null;
   cancelled_at: string | null;
   change_requested_at: string | null;
@@ -132,6 +134,8 @@ export async function createDeal(manager: string, fields: Fields, clauses: Claus
     stamp_requested_at: null,
     executed_at: null,
     content_done_at: null,
+    payment_requested_at: null,
+    payment_expected: null,
     paid_at: null,
     cancelled_at: null,
     change_requested_at: null,
@@ -170,54 +174,83 @@ export function billingOf(deal: Deal): Billing | null {
   return deal.billing_enc ? decryptJson<Billing>(deal.billing_enc) : null;
 }
 
-// ---- Status -----------------------------------------------------------------
+// ---- Process ----------------------------------------------------------------
+//
+// One linear process per creator:
+//   1 creator signs agreement + invoice  ->  2 we get approval and the company stamp
+//   ->  3 creator delivers the content  ->  4 we request the transfer  ->  5 transfer goes out
 
-export type ContractStatus = "draft" | "sent" | "viewed" | "changes" | "stamp_needed" | "stamp_requested" | "executed" | "cancelled";
-export type InvoiceStatus = "none" | "prepared" | "issued" | "paid";
+export const STEPS = ["Signed", "Stamped", "Content done", "Transfer requested", "Paid"] as const;
 
-export function contractStatus(d: Stamps): ContractStatus {
+export type Stage = "draft" | "sign" | "changes" | "stamp" | "content" | "transfer" | "payout" | "done" | "cancelled";
+
+export function stageOf(d: Stamps): Stage {
   if (d.cancelled_at) return "cancelled";
-  if (d.executed_at) return "executed";
-  if (d.signed_at) return d.stamp_requested_at ? "stamp_requested" : "stamp_needed";
-  if (d.change_requested_at) return "changes";
-  if (d.viewed_at) return "viewed";
-  if (d.sent_at) return "sent";
-  return "draft";
+  if (!d.sent_at) return "draft";
+  if (!d.signed_at) return d.change_requested_at ? "changes" : "sign";
+  if (!d.executed_at) return "stamp";
+  if (!d.content_done_at) return "content";
+  if (!d.payment_requested_at) return "transfer";
+  if (!d.paid_at) return "payout";
+  return "done";
 }
 
-export function invoiceStatus(d: Stamps): InvoiceStatus {
-  if (d.paid_at) return "paid";
-  if (d.content_done_at) return "issued";
-  if (d.signed_at) return "prepared";
-  return "none";
+/** How many of the five steps are complete. */
+export function stepsDone(d: Stamps): number {
+  const i = [d.signed_at, d.executed_at, d.content_done_at, d.payment_requested_at, d.paid_at].findIndex((x) => !x);
+  return i === -1 ? 5 : i;
 }
 
-export const CONTRACT_LABEL: Record<ContractStatus, string> = {
+export const STAGE_LABEL: Record<Stage, string> = {
   draft: "Draft",
-  sent: "Sent, not opened",
-  viewed: "Opened, not signed",
-  changes: "Changes requested",
-  stamp_needed: "Signed · stamp needed",
-  stamp_requested: "Signed · stamp requested",
-  executed: "Executed",
+  sign: "Awaiting creator signature",
+  changes: "Creator requested changes",
+  stamp: "Company approval and stamp",
+  content: "Content in progress",
+  transfer: "Ready to request transfer",
+  payout: "Transfer requested",
+  done: "Completed",
   cancelled: "Cancelled",
 };
 
-export const INVOICE_LABEL: Record<InvoiceStatus, string> = {
-  none: "—",
-  prepared: "Ready · content in progress",
-  issued: "Issued · awaiting payment",
-  paid: "Paid",
-};
+export function transferOverdue(d: Stamps): boolean {
+  return stageOf(d) === "payout" && !!d.payment_expected && d.payment_expected < new Date().toISOString().slice(0, 10);
+}
 
-/** True when nothing more needs to happen on the deal. */
+/** Who has to move next, and what they have to do. */
+export type Next = { owner: "you" | "creator" | "finance" | "none"; text: string };
+
+export function nextAction(d: Stamps): Next {
+  switch (stageOf(d)) {
+    case "draft":
+      return { owner: "you", text: "Finish the terms and create the link" };
+    case "sign":
+      return { owner: "creator", text: d.viewed_at ? "Opened the link, has not signed yet" : "Has not opened the link yet" };
+    case "changes":
+      return { owner: "you", text: "Revise the agreement" };
+    case "stamp":
+      return d.stamp_requested_at
+        ? { owner: "you", text: "Upload the stamped PDF once approved" }
+        : { owner: "you", text: "Submit for approval and company stamp" };
+    case "content":
+      return { owner: "creator", text: "Posting content. Confirm when all videos are live" };
+    case "transfer":
+      return { owner: "you", text: "Request the transfer" };
+    case "payout":
+      return transferOverdue(d) ? { owner: "you", text: "Expected date passed. Check and mark as paid" } : { owner: "finance", text: "Transfer in progress" };
+    default:
+      return { owner: "none", text: "" };
+  }
+}
+
 export function isDone(d: Stamps): boolean {
-  return !!d.cancelled_at || (!!d.executed_at && !!d.paid_at);
+  const s = stageOf(d);
+  return s === "done" || s === "cancelled";
 }
 
 /** When the deal entered its current state, for "waiting N days". */
 export function waitingSince(d: Stamps): string {
-  const all = [d.paid_at, d.content_done_at, d.executed_at, d.stamp_requested_at, d.signed_at, d.change_requested_at, d.viewed_at, d.sent_at, d.created_at];
+  const all = [d.paid_at, d.payment_requested_at, d.content_done_at, d.executed_at, d.stamp_requested_at, d.signed_at, d.change_requested_at, d.viewed_at, d.sent_at, d.created_at];
   return (all.filter(Boolean) as string[]).sort().pop()!;
 }
 
