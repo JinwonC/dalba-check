@@ -2,10 +2,9 @@
 
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
-import { requireUser } from "@/auth";
-import { q } from "@/lib/db";
-import { newToken } from "@/lib/crypto";
-import { getDeal, logEvent } from "@/lib/deals";
+import { requireUser } from "@/lib/session";
+import { createDeal, now, stampedKey, updateDeal, type Deal } from "@/lib/deals";
+import { writeBytes } from "@/lib/store";
 import { defaultFields, type Clause, type Fields } from "@/lib/template";
 
 function cleanFields(input: Partial<Fields>): Fields {
@@ -70,72 +69,74 @@ export async function saveDeal(id: string | null, rawFields: Partial<Fields>, ra
 
   let dealId = id;
   if (!dealId) {
-    const rows = await q<{ id: string }>(
-      `insert into deals (token, manager_email, manager_name, fields, clauses, sent_at)
-       values ($1, $2, $3, $4, $5, ${send ? "now()" : "null"}) returning id`,
-      [newToken(), user.email, user.name, JSON.stringify(fields), JSON.stringify(clauses)],
-    );
-    dealId = rows[0].id;
-    await logEvent(dealId, user.email, "created");
-    if (send) await logEvent(dealId, user.email, "link_created");
+    dealId = (await createDeal(user.name, fields, clauses, send)).id;
   } else {
-    const deal = await getDeal(dealId);
-    if (!deal) return { error: "Deal not found." };
-    if (deal.signed_at) return { error: "This agreement is already signed and can no longer be edited." };
-    if (deal.cancelled_at) return { error: "This deal is cancelled." };
-    const wasSent = !!deal.sent_at;
-    // Editing a live agreement resets "opened" so the creator re-reviews the new version.
-    await q(
-      `update deals set fields = $2, clauses = $3, updated_at = now(),
-         change_request = null, change_requested_at = null,
-         viewed_at = null,
-         sent_at = case when $4::boolean then coalesce(sent_at, now()) else sent_at end
-       where id = $1`,
-      [dealId, JSON.stringify(fields), JSON.stringify(clauses), send],
-    );
-    await logEvent(dealId, user.email, wasSent ? "revised" : "edited");
-    if (send && !wasSent) await logEvent(dealId, user.email, "link_created");
+    const res = await updateDeal(dealId, user.name, (d) => {
+      if (d.signed_at) return { error: "This agreement is already signed and can no longer be edited." };
+      if (d.cancelled_at) return { error: "This deal is cancelled." };
+      const wasSent = !!d.sent_at;
+      d.fields = fields;
+      d.clauses = clauses;
+      // Editing a live agreement resets "opened" so the creator re-reviews the new version.
+      d.change_request = null;
+      d.change_requested_at = null;
+      d.viewed_at = null;
+      if (send && !wasSent) d.sent_at = now();
+      return { event: wasSent ? "revised" : send ? "link_created" : "edited" };
+    });
+    if ("error" in res) return res;
   }
   revalidatePath("/");
   redirect(`/deals/${dealId}`);
 }
 
-async function mutate(id: string, sql: string, event: string, guard: (d: NonNullable<Awaited<ReturnType<typeof getDeal>>>) => string | null) {
+async function change(id: string, fn: (d: Deal) => { error: string } | { event: string; detail?: string }) {
   const user = await requireUser();
-  const deal = await getDeal(id);
-  if (!deal) throw new Error("Deal not found");
-  const problem = guard(deal);
-  if (problem) throw new Error(problem);
-  await q(`update deals set ${sql}, updated_at = now() where id = $1`, [id]);
-  await logEvent(id, user.email, event);
+  const res = await updateDeal(id, user.name, fn);
+  if ("error" in res) throw new Error(res.error);
   revalidatePath("/");
   revalidatePath(`/deals/${id}`);
 }
 
 export async function markStampRequested(id: string) {
-  await mutate(id, "stamp_requested_at = now()", "stamp_requested", (d) => (d.signed_at ? null : "Not signed yet"));
+  await change(id, (d) => {
+    if (!d.signed_at) return { error: "Not signed yet" };
+    d.stamp_requested_at ??= now();
+    return { event: "stamp_requested" };
+  });
 }
 
 export async function markContentDone(id: string) {
-  await mutate(id, "content_done_at = now()", "invoice_issued", (d) =>
-    !d.signed_at ? "Not signed yet" : d.content_done_at ? "Invoice already issued" : null,
-  );
+  await change(id, (d) => {
+    if (!d.signed_at) return { error: "Not signed yet" };
+    if (d.content_done_at) return { error: "Invoice already issued" };
+    d.content_done_at = now();
+    return { event: "invoice_issued" };
+  });
 }
 
 export async function markPaid(id: string) {
-  await mutate(id, "paid_at = now()", "paid", (d) => (d.content_done_at ? null : "Invoice not issued yet"));
+  await change(id, (d) => {
+    if (!d.content_done_at) return { error: "Invoice not issued yet" };
+    d.paid_at ??= now();
+    return { event: "paid" };
+  });
 }
 
 export async function cancelDeal(id: string) {
-  await mutate(id, "cancelled_at = now()", "cancelled", (d) => (d.signed_at ? "Signed agreements cannot be cancelled here" : null));
+  await change(id, (d) => {
+    if (d.signed_at) return { error: "Signed agreements cannot be cancelled here" };
+    d.cancelled_at = now();
+    return { event: "cancelled" };
+  });
 }
 
 export async function reassignToMe(id: string) {
   const user = await requireUser();
-  await q(`update deals set manager_email = $2, manager_name = $3, updated_at = now() where id = $1`, [id, user.email, user.name]);
-  await logEvent(id, user.email, "reassigned", user.email);
-  revalidatePath("/");
-  revalidatePath(`/deals/${id}`);
+  await change(id, (d) => {
+    d.manager = user.name;
+    return { event: "reassigned", detail: user.name };
+  });
 }
 
 export type UploadResult = { error: string } | { ok: true };
@@ -143,20 +144,24 @@ export type UploadResult = { error: string } | { ok: true };
 /** Upload the company-stamped PDF that came back from the internal system. */
 export async function uploadStamped(id: string, _prev: UploadResult | null, formData: FormData): Promise<UploadResult> {
   const user = await requireUser();
-  const deal = await getDeal(id);
-  if (!deal) return { error: "Deal not found." };
-  if (!deal.signed_at) return { error: "The creator has not signed yet." };
   const file = formData.get("file");
   if (!(file instanceof File) || file.size === 0) return { error: "Choose the stamped PDF file." };
   if (file.size > 4 * 1024 * 1024) return { error: "File is larger than 4 MB. Compress the PDF and try again." };
   const bytes = Buffer.from(await file.arrayBuffer());
   if (bytes.subarray(0, 5).toString("latin1") !== "%PDF-") return { error: "That file is not a PDF." };
-  await q(
-    `update deals set stamped_pdf = $2, stamped_pdf_name = $3, executed_at = now(),
-       stamp_requested_at = coalesce(stamp_requested_at, now()), updated_at = now() where id = $1`,
-    [id, bytes, file.name.slice(0, 200)],
-  );
-  await logEvent(id, user.email, "stamped_uploaded", file.name.slice(0, 200));
+  const name = file.name.slice(0, 200);
+  // Check state first, store the file, then record it on the deal.
+  const check = await updateDeal(id, user.name, (d) => (d.signed_at ? null : { error: "The creator has not signed yet." }));
+  if ("error" in check) return check;
+  await writeBytes(stampedKey(id), bytes, "application/pdf");
+  const res = await updateDeal(id, user.name, (d) => {
+    const t = now();
+    d.stamped_pdf_name = name;
+    d.executed_at = t;
+    d.stamp_requested_at ??= t;
+    return { event: "stamped_uploaded", detail: name };
+  });
+  if ("error" in res) return res;
   revalidatePath("/");
   revalidatePath(`/deals/${id}`);
   return { ok: true };

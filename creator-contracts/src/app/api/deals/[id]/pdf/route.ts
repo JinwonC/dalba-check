@@ -1,4 +1,4 @@
-import { currentUser } from "@/auth";
+import { currentUser } from "@/lib/session";
 import { getDeal } from "@/lib/deals";
 import { signedPdfResponse } from "@/lib/dealPdf";
 

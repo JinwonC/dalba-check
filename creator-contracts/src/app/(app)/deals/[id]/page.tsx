@@ -1,11 +1,11 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { requireUser } from "@/auth";
+import { requireUser } from "@/lib/session";
 import ConfirmButton from "@/components/ConfirmButton";
 import CopyLink from "@/components/CopyLink";
 import StampUpload from "@/components/StampUpload";
 import { ContractDoc, InvoiceDoc } from "@/components/Document";
-import { CONTRACT_LABEL, INVOICE_LABEL, billingOf, contractStatus, getDeal, invoiceStatus, listEvents } from "@/lib/deals";
+import { CONTRACT_LABEL, INVOICE_LABEL, billingOf, contractStatus, getDeal, invoiceStatus, linkToken } from "@/lib/deals";
 import { clauseState, DEFAULT_CLAUSES, money } from "@/lib/template";
 import { origin } from "@/lib/url";
 import { cancelDeal, markContentDone, markPaid, markStampRequested, reassignToMe } from "../actions";
@@ -28,10 +28,10 @@ const EVENT_LABEL: Record<string, string> = {
   reassigned: "Manager changed",
 };
 
-const when = (d: Date | null) =>
+const when = (d: string | null | undefined) =>
   d ? new Date(d).toLocaleString("en-US", { month: "short", day: "numeric", year: "numeric", hour: "2-digit", minute: "2-digit", timeZone: "UTC" }) + " UTC" : "";
 
-function Step({ done, current, title, at, children }: { done: boolean; current: boolean; title: string; at?: Date | null; children?: React.ReactNode }) {
+function Step({ done, current, title, at, children }: { done: boolean; current: boolean; title: string; at?: string | null; children?: React.ReactNode }) {
   return (
     <li className={done ? "step done" : current ? "step current" : "step"}>
       <span className="step-dot" aria-hidden>
@@ -53,12 +53,13 @@ export default async function DealPage({ params }: { params: Promise<{ id: strin
   const { id } = await params;
   const deal = await getDeal(id);
   if (!deal) notFound();
-  const [events, base] = await Promise.all([listEvents(id), origin()]);
+  const base = await origin();
+  const events = [...deal.events].reverse();
   const f = deal.fields;
   const c = contractStatus(deal);
   const i = invoiceStatus(deal);
   const billing = billingOf(deal);
-  const link = `${base}/c/${deal.token}`;
+  const link = `${base}/c/${linkToken(deal)}`;
   const cancelled = !!deal.cancelled_at;
   const signed = !!deal.signed_at;
   const custom = deal.clauses.filter((x) => clauseState(x) !== "standard");
@@ -75,8 +76,8 @@ export default async function DealPage({ params }: { params: Promise<{ id: strin
           <p className="muted">
             {money(f.fee, f.currency)}
             {f.commissionPct > 0 && ` + ${f.commissionPct}% commission`} · {f.deliverableCount} x {f.deliverableType} · {f.country} · Manager:{" "}
-            {deal.manager_name || deal.manager_email}
-            {deal.manager_email !== user.email && !cancelled && (
+            {deal.manager}
+            {deal.manager !== user.name && !cancelled && (
               <>
                 {" "}
                 <ConfirmButton action={reassignToMe.bind(null, id)} className="linkish" confirm="Make yourself the manager of this deal?">
@@ -211,8 +212,8 @@ export default async function DealPage({ params }: { params: Promise<{ id: strin
       <section className="card">
         <h2>Activity</h2>
         <ul className="events">
-          {events.map((e) => (
-            <li key={e.id}>
+          {events.map((e, i2) => (
+            <li key={i2}>
               <span className="muted small">{when(e.at)}</span>
               <span>
                 {EVENT_LABEL[e.type] ?? e.type}

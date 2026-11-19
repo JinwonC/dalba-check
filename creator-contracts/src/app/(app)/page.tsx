@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { requireUser } from "@/auth";
+import { requireUser } from "@/lib/session";
 import CopyLink from "@/components/CopyLink";
 import {
   CONTRACT_LABEL,
@@ -7,20 +7,21 @@ import {
   contractStatus,
   daysSince,
   invoiceStatus,
+  isDone,
+  linkToken,
   listDeals,
-  queueOf,
   waitingSince,
   type ContractStatus,
-  type Deal,
   type InvoiceStatus,
+  type Summary,
 } from "@/lib/deals";
-import { customCount, money } from "@/lib/template";
+import { money } from "@/lib/template";
 import { origin } from "@/lib/url";
 
 export const dynamic = "force-dynamic";
 
 // Dashboard buckets: each answers "what are we waiting on?".
-const BUCKETS: { key: string; label: string; hint: string; match: (d: Deal) => boolean }[] = [
+const BUCKETS: { key: string; label: string; hint: string; match: (d: Summary) => boolean }[] = [
   { key: "signature", label: "Awaiting signature", hint: "Creator has the link", match: (d) => ["sent", "viewed"].includes(contractStatus(d)) },
   { key: "changes", label: "Changes requested", hint: "Creator asked for edits", match: (d) => contractStatus(d) === "changes" },
   { key: "stamp", label: "Company stamp", hint: "Signed, needs our seal", match: (d) => ["stamp_needed", "stamp_requested"].includes(contractStatus(d)) },
@@ -49,19 +50,19 @@ export default async function Dashboard({ searchParams }: { searchParams: Promis
   const all = await listDeals();
   const base = origin();
 
-  const scoped = all.filter((d) => scope === "all" || d.manager_email === user.email);
+  const scoped = all.filter((d) => scope === "all" || d.manager === user.name);
   const term = (sp.q || "").trim().toLowerCase();
   const rows = scoped.filter((d) => {
     if (sp.bucket) {
       if (sp.bucket === "done") {
-        if (queueOf(d) !== "done") return false;
+        if (!isDone(d)) return false;
       } else if (sp.bucket === "draft") {
         if (contractStatus(d) !== "draft") return false;
       } else if (!BUCKETS.find((b) => b.key === sp.bucket)?.match(d)) return false;
     }
     if (sp.country && d.fields.country !== sp.country) return false;
     if (term) {
-      const hay = `${d.fields.handle} ${d.fields.talentName} ${d.fields.product} ${d.manager_email} ${d.manager_name ?? ""}`.toLowerCase();
+      const hay = `${d.fields.handle} ${d.fields.talentName} ${d.fields.product} ${d.manager}`.toLowerCase();
       if (!hay.includes(term)) return false;
     }
     return true;
@@ -131,7 +132,7 @@ export default async function Dashboard({ searchParams }: { searchParams: Promis
           Drafts ({scoped.filter((d) => contractStatus(d) === "draft").length})
         </Link>
         <Link href={href({ bucket: "done" })} className={sp.bucket === "done" ? "active" : ""}>
-          Completed ({scoped.filter((d) => queueOf(d) === "done").length})
+          Completed ({scoped.filter(isDone).length})
         </Link>
       </p>
 
@@ -162,9 +163,9 @@ export default async function Dashboard({ searchParams }: { searchParams: Promis
               {rows.map((d) => {
                 const c = contractStatus(d);
                 const i = invoiceStatus(d);
-                const idle = queueOf(d) === "done" || c === "draft";
+                const idle = isDone(d) || c === "draft";
                 const days = daysSince(waitingSince(d));
-                const custom = customCount(d.clauses);
+                const custom = d.custom;
                 return (
                   <tr key={d.id}>
                     <td>
@@ -188,9 +189,9 @@ export default async function Dashboard({ searchParams }: { searchParams: Promis
                     </td>
                     <td>{i === "none" || d.cancelled_at ? <span className="muted">—</span> : <span className={`pill pill-${INVOICE_TONE[i]}`}>{INVOICE_LABEL[i]}</span>}</td>
                     <td className={!idle && days >= 5 ? "late" : ""}>{idle ? <span className="muted">—</span> : days === 0 ? "today" : `${days}d`}</td>
-                    {scope === "all" && <td className="small">{d.manager_name || d.manager_email}</td>}
+                    {scope === "all" && <td className="small">{d.manager}</td>}
                     <td className="right nowrap">
-                      {["sent", "viewed"].includes(c) && <CopyLink compact url={`${linkBase}/c/${d.token}`} />}{" "}
+                      {["sent", "viewed"].includes(c) && <CopyLink compact url={`${linkBase}/c/${linkToken(d)}`} />}{" "}
                       <Link href={`/deals/${d.id}`} className="btn btn-sm">
                         Open
                       </Link>

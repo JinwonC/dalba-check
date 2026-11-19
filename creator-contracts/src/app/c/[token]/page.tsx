@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
-import { q } from "@/lib/db";
-import { billingOf, getDealByToken, logEvent } from "@/lib/deals";
+import { billingOf, getDealByToken, updateDeal } from "@/lib/deals";
 import { ContractDoc, InvoiceDoc } from "@/components/Document";
 import SignFlow from "./SignFlow";
 
@@ -49,8 +48,11 @@ export default async function CreatorPage({ params }: { params: Promise<{ token:
   }
 
   if (!deal.viewed_at) {
-    await q(`update deals set viewed_at = now() where id = $1 and viewed_at is null`, [deal.id]);
-    await logEvent(deal.id, "creator", "viewed");
+    await updateDeal(deal.id, "creator", (d) => {
+      if (d.viewed_at) return null;
+      d.viewed_at = new Date().toISOString();
+      return { event: "viewed" };
+    });
   }
 
   return (

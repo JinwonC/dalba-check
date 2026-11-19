@@ -11,7 +11,7 @@ export async function signedPdfResponse(deal: Deal): Promise<Response> {
     billing,
     signature: deal.signature,
     invoiceNumber: deal.invoice_number,
-    issueDate: deal.content_done_at,
+    issueDate: deal.content_done_at ? new Date(deal.content_done_at) : null,
     dealId: deal.id,
   });
   return new Response(new Uint8Array(pdf), {

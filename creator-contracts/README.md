@@ -14,27 +14,29 @@
 
 ## 구성
 
-- Next.js (App Router) + Postgres (`pg`) + `@react-pdf/renderer`
-- 매니저 로그인: Google 계정, `ALLOWED_EMAIL_DOMAINS` 도메인만 허용
-- 크리에이터: 로그인 없음, 추측 불가능한 토큰 링크 (`/c/<token>`)
+- Next.js (App Router) + Vercel Blob(비공개 스토어) + `@react-pdf/renderer`
+- 매니저: 계정 로그인 없음. 팀 공용 접근 코드(`APP_KEY`)와 본인 이름을 브라우저당 한 번 입력
+- 크리에이터: 추측 불가능한 토큰 링크 (`/c/<id>.<secret>`)
+- 저장 구조: `deals/<id>.json`(딜 전체), `index.json`(대시보드용 요약), `stamped/<id>.pdf`(직인본)
 - 은행 정보는 AES-256-GCM으로 암호화해 저장
 - 서명 시 시각, IP, 브라우저, 문서 SHA-256을 기록해 PDF 마지막 장에 넣음
 - 계약서 기본 조항은 `src/lib/template.ts`의 `DEFAULT_CLAUSES`
 
+## 환경변수
+
+| 이름 | 용도 |
+|---|---|
+| `APP_KEY` | 매니저 화면 접근 코드. 프로덕션에서는 필수 |
+| `SESSION_SECRET` | 매니저 쿠키 서명 키 |
+| `ENCRYPTION_KEY` | 은행 정보 암호화 키. 바꾸면 기존 은행 정보를 복호화할 수 없음 |
+| `BLOB_READ_WRITE_TOKEN` 등 | Vercel Blob 스토어를 프로젝트에 연결하면 자동 설정 |
+
 ## 로컬 실행
 
 ```bash
-cp .env.example .env.local   # DATABASE_URL, AUTH_SECRET, ENCRYPTION_KEY 입력, DEV_LOGIN=1
+cp .env.example .env.local
 npm install
-npm run migrate              # DATABASE_URL 환경변수 필요
 npm run dev
 ```
 
-## 배포 (Vercel)
-
-1. Vercel 프로젝트를 만들고 Root Directory를 `creator-contracts`로 지정 (별도 저장소로 옮기면 루트 그대로).
-2. Postgres(Neon, Supabase 등)를 만들고 `DATABASE_URL` 설정 후 `npm run migrate` 1회 실행.
-3. `.env.example`의 나머지 환경변수 설정. `DEV_LOGIN`은 설정하지 않는다.
-4. Google Cloud Console에서 OAuth 클라이언트를 만들고 리디렉션 URI에 `https://<도메인>/api/auth/callback/google` 추가.
-
-`ENCRYPTION_KEY`를 바꾸면 기존 은행 정보를 복호화할 수 없으니 분실하지 않도록 보관한다.
+Blob 환경변수가 없으면 `.data/` 폴더에 파일로 저장한다(개발용).
