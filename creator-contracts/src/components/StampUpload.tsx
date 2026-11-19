@@ -9,7 +9,7 @@ export default function StampUpload({ dealId, replace }: { dealId: string; repla
     <form action={action} className="upload">
       <input type="file" name="file" accept="application/pdf,.pdf" required aria-label="Stamped PDF" />
       <button className={replace ? "btn btn-sm" : "btn btn-primary"} disabled={pending}>
-        {pending ? "Uploading…" : replace ? "Replace file" : "Upload stamped PDF"}
+        {pending ? "Uploading…" : "Upload stamped PDF"}
       </button>
       {state && "error" in state && <p className="alert alert-warn">{state.error}</p>}
     </form>

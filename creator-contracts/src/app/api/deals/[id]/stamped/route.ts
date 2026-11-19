@@ -8,7 +8,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
   const { id } = await params;
   const deal = await getDeal(id);
   if (!deal) return new Response("Not found", { status: 404 });
-  const pdf = deal.executed_at ? await readBytes(stampedKey(id)) : null;
+  const pdf = deal.stamped_pdf_name ? await readBytes(stampedKey(id)) : null;
   if (!pdf) return new Response("No stamped file uploaded", { status: 404 });
   return new Response(new Uint8Array(pdf), {
     headers: {

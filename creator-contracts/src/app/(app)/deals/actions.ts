@@ -98,17 +98,25 @@ async function change(id: string, fn: (d: Deal) => { error: string } | { event: 
   revalidatePath(`/deals/${id}`);
 }
 
-export async function markStampRequested(id: string) {
+export async function markStamped(id: string) {
   await change(id, (d) => {
     if (!d.signed_at) return { error: "Not signed yet" };
-    d.stamp_requested_at ??= now();
-    return { event: "stamp_requested" };
+    d.executed_at ??= now();
+    return { event: "stamped" };
+  });
+}
+
+export async function undoStamped(id: string) {
+  await change(id, (d) => {
+    if (d.content_done_at) return { error: "Content already confirmed" };
+    d.executed_at = null;
+    return { event: "stamped_undone" };
   });
 }
 
 export async function markContentDone(id: string) {
   await change(id, (d) => {
-    if (!d.executed_at) return { error: "Upload the stamped agreement first" };
+    if (!d.executed_at) return { error: "Mark the company stamp as received first" };
     d.content_done_at ??= now();
     return { event: "content_done" };
   });
@@ -122,18 +130,23 @@ export async function undoContentDone(id: string) {
   });
 }
 
-/** Record that the transfer was requested internally and when it is expected to go out. */
-export async function setPaymentRequest(id: string, expected: string): Promise<{ error: string } | undefined> {
+const isDate = (v: string) => /^\d{4}-\d{2}-\d{2}$/.test(v) && !isNaN(new Date(v).getTime());
+
+/** Record when the transfer was requested internally and when it is expected to go out. */
+export async function setPaymentRequest(id: string, requested: string, expected: string): Promise<{ error: string } | undefined> {
   const user = await requireUser();
-  const date = String(expected || "").trim();
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || isNaN(new Date(date).getTime())) return { error: "Choose the expected transfer date." };
+  const req = String(requested || "").trim();
+  const exp = String(expected || "").trim();
+  if (!isDate(req)) return { error: "Enter the date the transfer was requested." };
+  if (!isDate(exp)) return { error: "Enter the expected transfer date." };
+  if (exp < req) return { error: "The expected date cannot be before the request date." };
   const res = await updateDeal(id, user.name, (d) => {
     if (!d.content_done_at) return { error: "Confirm the content is complete first." };
     if (d.paid_at) return { error: "This deal is already marked as paid." };
     const first = !d.payment_requested_at;
-    d.payment_requested_at ??= now();
-    d.payment_expected = date;
-    return { event: first ? "payment_requested" : "payment_date_changed", detail: date };
+    d.payment_requested_at = req;
+    d.payment_expected = exp;
+    return { event: first ? "payment_requested" : "payment_date_changed", detail: `requested ${req}, expected ${exp}` };
   });
   if ("error" in res) return res;
   revalidatePath("/");
@@ -189,10 +202,8 @@ export async function uploadStamped(id: string, _prev: UploadResult | null, form
   if ("error" in check) return check;
   await writeBytes(stampedKey(id), bytes, "application/pdf");
   const res = await updateDeal(id, user.name, (d) => {
-    const t = now();
     d.stamped_pdf_name = name;
-    d.executed_at = t;
-    d.stamp_requested_at ??= t;
+    d.executed_at ??= now();
     return { event: "stamped_uploaded", detail: name };
   });
   if ("error" in res) return res;

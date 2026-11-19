@@ -3,9 +3,11 @@
 import { useState, useTransition } from "react";
 import { setPaymentRequest } from "@/app/(app)/deals/actions";
 
-/** Record that the remittance was requested internally, with the expected transfer date. */
-export default function PaymentRequest({ dealId, current }: { dealId: string; current?: string | null }) {
-  const [date, setDate] = useState(current ?? "");
+/** Record when the transfer was requested internally and when it is expected to go out. */
+export default function PaymentRequest({ dealId, requested, expected }: { dealId: string; requested?: string | null; expected?: string | null }) {
+  const editing = !!requested;
+  const [req, setReq] = useState(requested?.slice(0, 10) ?? new Date().toISOString().slice(0, 10));
+  const [exp, setExp] = useState(expected ?? "");
   const [error, setError] = useState<string | null>(null);
   const [pending, start] = useTransition();
   return (
@@ -15,17 +17,21 @@ export default function PaymentRequest({ dealId, current }: { dealId: string; cu
         e.preventDefault();
         setError(null);
         start(async () => {
-          const res = await setPaymentRequest(dealId, date);
+          const res = await setPaymentRequest(dealId, req, exp);
           if (res && "error" in res) setError(res.error);
         });
       }}
     >
-      <label className="field" style={{ flex: "0 1 220px" }}>
-        <span>Expected transfer date</span>
-        <input type="date" value={date} onChange={(e) => setDate(e.target.value)} required />
+      <label className="field" style={{ flex: "0 1 200px" }}>
+        <span>Transfer requested on</span>
+        <input type="date" value={req} onChange={(e) => setReq(e.target.value)} required />
       </label>
-      <button className={current ? "btn" : "btn btn-primary"} disabled={pending} style={{ alignSelf: "flex-end" }}>
-        {pending ? "Saving…" : current ? "Update date" : "Mark transfer requested"}
+      <label className="field" style={{ flex: "0 1 200px" }}>
+        <span>Expected transfer date</span>
+        <input type="date" value={exp} onChange={(e) => setExp(e.target.value)} required />
+      </label>
+      <button className={editing ? "btn" : "btn btn-primary"} disabled={pending} style={{ alignSelf: "flex-end" }}>
+        {pending ? "Saving…" : editing ? "Update dates" : "Transfer requested"}
       </button>
       {error && <p className="alert alert-warn">{error}</p>}
     </form>

@@ -229,15 +229,13 @@ export function nextAction(d: Stamps): Next {
     case "changes":
       return { owner: "you", text: "Revise the agreement" };
     case "stamp":
-      return d.stamp_requested_at
-        ? { owner: "you", text: "Upload the stamped PDF once approved" }
-        : { owner: "you", text: "Submit for approval and company stamp" };
+      return { owner: "you", text: "Get the company stamp, then mark it received" };
     case "content":
-      return { owner: "creator", text: "Posting content. Confirm when all videos are live" };
+      return { owner: "creator", text: "Delivering content. Mark complete when done" };
     case "transfer":
-      return { owner: "you", text: "Request the transfer" };
+      return { owner: "you", text: "Request the transfer and record the dates" };
     case "payout":
-      return transferOverdue(d) ? { owner: "you", text: "Expected date passed. Check and mark as paid" } : { owner: "finance", text: "Transfer in progress" };
+      return transferOverdue(d) ? { owner: "you", text: "Expected date passed. Check and mark as sent" } : { owner: "finance", text: "Transfer in progress" };
     default:
       return { owner: "none", text: "" };
   }

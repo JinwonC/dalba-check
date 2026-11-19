@@ -10,7 +10,7 @@ import { STAGE_LABEL, billingOf, getDeal, linkToken, nextAction, stageOf, stepsD
 import { clauseState, DEFAULT_CLAUSES, longDate, money } from "@/lib/template";
 import { origin } from "@/lib/url";
 import PaymentRequest from "@/components/PaymentRequest";
-import { cancelDeal, clearPaymentRequest, markContentDone, markPaid, markStampRequested, reassignToMe, undoContentDone } from "../actions";
+import { cancelDeal, clearPaymentRequest, markContentDone, markPaid, markStamped, reassignToMe, undoContentDone, undoStamped } from "../actions";
 
 export const dynamic = "force-dynamic";
 
@@ -23,6 +23,8 @@ const EVENT_LABEL: Record<string, string> = {
   changes_requested: "Creator requested changes",
   signed: "Creator signed",
   stamp_requested: "Company stamp requested",
+  stamped: "Company stamp received",
+  stamped_undone: "Company stamp step undone",
   stamped_uploaded: "Stamped PDF uploaded",
   invoice_issued: "Invoice issued",
   content_done: "Content confirmed complete",
@@ -152,59 +154,56 @@ export default async function DealPage({ params }: { params: Promise<{ id: strin
             </Step>
 
             <Step done={!!deal.executed_at} current={stage === "stamp"} title="2. Internal approval and company stamp" at={deal.executed_at}>
-              <p>
-                1. Download the signed PDF and submit it to the internal system for the company seal.
-                <br />
-                2. When the stamped file comes back, upload it here.
-              </p>
+              <p>Download the signed PDF, get it approved and stamped internally, then mark it here.</p>
               <div className="row">
-                <a href={`/api/deals/${id}/pdf`} className="btn btn-primary">
+                <ConfirmButton action={markStamped.bind(null, id)} className="btn btn-primary">
+                  Company stamp received
+                </ConfirmButton>
+                <a href={`/api/deals/${id}/pdf`} className="btn">
                   Download signed PDF
                 </a>
-                {deal.stamp_requested_at ? (
-                  <span className="muted small">Stamp requested {when(deal.stamp_requested_at)}</span>
-                ) : (
-                  <ConfirmButton action={markStampRequested.bind(null, id)} className="btn">
-                    Mark stamp requested
-                  </ConfirmButton>
-                )}
               </div>
-              <StampUpload dealId={id} />
             </Step>
 
             <Step done={!!deal.content_done_at} current={stage === "content"} title="3. Creator delivers the content" at={deal.content_done_at}>
               <p>
                 When all {f.deliverableCount} {f.deliverableType} are posted and the creator has met the agreement, confirm it here.
               </p>
-              <ConfirmButton action={markContentDone.bind(null, id)} className="btn btn-primary" confirm="Confirm the creator has delivered everything in the agreement?">
-                Content complete
-              </ConfirmButton>
+              <div className="row">
+                <ConfirmButton action={markContentDone.bind(null, id)} className="btn btn-primary">
+                  Content complete
+                </ConfirmButton>
+                <ConfirmButton action={undoStamped.bind(null, id)} className="btn btn-sm btn-ghost" confirm="Undo the company stamp step?">
+                  Undo previous step
+                </ConfirmButton>
+              </div>
             </Step>
 
-            <Step done={!!deal.payment_requested_at} current={stage === "transfer"} title="4. Request the transfer" at={deal.payment_requested_at} note={deal.payment_expected && !deal.paid_at ? `expected ${longDate(deal.payment_expected)}` : undefined}>
+            <Step done={!!deal.payment_requested_at} current={stage === "transfer"} title="4. Request the transfer" note={deal.payment_requested_at ? `requested ${longDate(deal.payment_requested_at)} · expected ${longDate(deal.payment_expected ?? "")}` : undefined}>
               <p>
-                Request the transfer of {money(f.fee, f.currency)} internally (invoice {deal.invoice_number}), then record it here with the expected transfer date.
+                Once you have requested the transfer of {money(f.fee, f.currency)} internally (invoice {deal.invoice_number}), record the date you requested it and
+                the date it is expected to go out.
               </p>
               <PaymentRequest dealId={id} />
               <ConfirmButton action={undoContentDone.bind(null, id)} className="btn btn-sm btn-ghost" confirm="Undo the content confirmation?">
-                Content was not complete, undo
+                Undo previous step
               </ConfirmButton>
             </Step>
 
             <Step done={!!deal.paid_at} current={stage === "payout"} title="5. Transfer sent" at={deal.paid_at}>
               <p>
-                Expected transfer date: <strong className={overdue ? "late" : ""}>{longDate(deal.payment_expected ?? "")}</strong>
+                Requested {longDate(deal.payment_requested_at ?? "")}. Expected transfer date: <strong className={overdue ? "late" : ""}>{longDate(deal.payment_expected ?? "")}</strong>
                 {overdue && <span className="late"> (date has passed)</span>}
               </p>
               <div className="row">
-                <ConfirmButton action={markPaid.bind(null, id)} className="btn btn-primary" confirm="Mark this payment as sent?">
-                  Mark as paid
+                <ConfirmButton action={markPaid.bind(null, id)} className="btn btn-primary">
+                  Transfer sent
                 </ConfirmButton>
                 <ConfirmButton action={clearPaymentRequest.bind(null, id)} className="btn btn-sm btn-ghost" confirm="Undo the transfer request?">
                   Undo request
                 </ConfirmButton>
               </div>
-              <PaymentRequest dealId={id} current={deal.payment_expected} />
+              <PaymentRequest dealId={id} requested={deal.payment_requested_at} expected={deal.payment_expected} />
             </Step>
           </ol>
         </section>
@@ -218,16 +217,20 @@ export default async function DealPage({ params }: { params: Promise<{ id: strin
               <a href={`/api/deals/${id}/pdf`}>Signed agreement + invoice (PDF)</a>
               <span className="muted small"> · creator signature, no company stamp</span>
             </li>
-            {deal.executed_at && (
-              <li>
-                <a href={`/api/deals/${id}/stamped`}>Stamped final agreement (PDF)</a>
-                <span className="muted small"> · {deal.stamped_pdf_name}</span>
-                <details className="replace">
-                  <summary>Replace file</summary>
-                  <StampUpload dealId={id} replace />
-                </details>
-              </li>
-            )}
+            <li>
+              {deal.stamped_pdf_name ? (
+                <>
+                  <a href={`/api/deals/${id}/stamped`}>Stamped final agreement (PDF)</a>
+                  <span className="muted small"> · {deal.stamped_pdf_name}</span>
+                </>
+              ) : (
+                <span className="muted">Stamped copy not uploaded (optional)</span>
+              )}
+              <details className="replace">
+                <summary>{deal.stamped_pdf_name ? "Replace file" : "Upload a copy"}</summary>
+                <StampUpload dealId={id} replace />
+              </details>
+            </li>
           </ul>
         </section>
       )}
