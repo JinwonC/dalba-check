@@ -3,7 +3,9 @@ import { requireUser } from "@/lib/session";
 import CopyLink from "@/components/CopyLink";
 import Stepper from "@/components/Stepper";
 import { STAGE_LABEL, daysSince, isDone, linkToken, listDeals, nextAction, stageOf, stepsDone, transferOverdue, waitingSince, type Stage, type Summary } from "@/lib/deals";
-import { itemsOf, longDate, medDate, money } from "@/lib/template";
+import { itemsOf, money } from "@/lib/template";
+import { fmtDate } from "@/lib/i18n";
+import { getT } from "@/lib/lang";
 import { origin } from "@/lib/url";
 
 export const dynamic = "force-dynamic";
@@ -24,6 +26,7 @@ type Search = { scope?: string; bucket?: string; q?: string; country?: string; t
 export default async function Dashboard({ searchParams }: { searchParams: Promise<Search> }) {
   const user = await requireUser();
   const sp = await searchParams;
+  const { t, lang } = await getT();
   const scope = sp.scope === "all" ? "all" : "mine";
   const todoOnly = sp.todo === "1";
   const [all, linkBase] = await Promise.all([listDeals(), origin()]);
@@ -69,29 +72,29 @@ export default async function Dashboard({ searchParams }: { searchParams: Promis
       <header className="hero">
         <div className="hero-top">
           <div>
-            <p className="kicker">d&apos;Alba · creator partnerships</p>
-            <h1>Agreements</h1>
+            <p className="kicker">{t("d'Alba · creator partnerships")}</p>
+            <h1>{t("Agreements")}</h1>
           </div>
           <Link href="/deals/new" className="btn btn-primary">
-            + New agreement
+            {t("+ New agreement")}
           </Link>
         </div>
-        <p className="hero-sub">Every creator contract and invoice in one place: who has signed, what is waiting on us, and when each payment goes out.</p>
+        <p className="hero-sub">{t("Every creator contract and invoice in one place: who has signed, what is waiting on us, and when each payment goes out.")}</p>
         <dl className="hero-stats">
           <div>
-            <dt>In progress</dt>
+            <dt>{t("In progress")}</dt>
             <dd>{active.length}</dd>
           </div>
           <div>
-            <dt>Need you</dt>
+            <dt>{t("Need you")}</dt>
             <dd>{todoCount}</dd>
           </div>
           <div>
-            <dt>Completed</dt>
+            <dt>{t("Completed")}</dt>
             <dd>{scoped.filter(isDone).length}</dd>
           </div>
           <div>
-            <dt>Creators</dt>
+            <dt>{t("Creators")}</dt>
             <dd>{new Set(scoped.map((d) => d.fields.handle.toLowerCase())).size}</dd>
           </div>
         </dl>
@@ -100,34 +103,34 @@ export default async function Dashboard({ searchParams }: { searchParams: Promis
       <div className="toolbar">
         <div className="seg" role="group" aria-label="Scope">
           <Link href={href({ scope: "mine" })} className={scope === "mine" ? "seg-item active" : "seg-item"}>
-            My deals
+            {t("My deals")}
           </Link>
           <Link href={href({ scope: "all" })} className={scope === "all" ? "seg-item active" : "seg-item"}>
-            All managers
+            {t("All managers")}
           </Link>
         </div>
         <form className="search" action="/">
           {scope === "all" && <input type="hidden" name="scope" value="all" />}
           {sp.bucket && <input type="hidden" name="bucket" value={sp.bucket} />}
           {todoOnly && <input type="hidden" name="todo" value="1" />}
-          <input name="q" defaultValue={sp.q || ""} placeholder="Search creator, product, manager" aria-label="Search" />
+          <input name="q" defaultValue={sp.q || ""} placeholder={t("Search creator, product, manager")} aria-label="Search" />
           <select name="country" defaultValue={sp.country || ""} aria-label="Country">
-            <option value="">All countries</option>
+            <option value="">{t("All countries")}</option>
             {countries.map((c) => (
               <option key={c}>{c}</option>
             ))}
           </select>
-          <button className="btn btn-sm">Filter</button>
+          <button className="btn btn-sm">{t("Filter")}</button>
         </form>
       </div>
 
       <Link href={href({ todo: todoOnly ? undefined : "1" })} className={`todo-banner${todoOnly ? " active" : ""}${todoCount ? "" : " clear"}`}>
         <span className="todo-n">{todoCount}</span>
         <span>
-          <strong>{todoCount === 1 ? "deal needs" : "deals need"} your action</strong>
-          <span className="muted"> · {active.length - todoCount} waiting on the creator or finance</span>
+          <strong>{t(todoCount === 1 ? "deal needs your action" : "deals need your action")}</strong>
+          <span className="muted"> · {t("{n} waiting on the creator or finance", { n: active.length - todoCount })}</span>
         </span>
-        <span className="todo-toggle">{todoOnly ? "Show all" : "Show only these"}</span>
+        <span className="todo-toggle">{todoOnly ? t("Show all") : t("Show only these")}</span>
       </Link>
 
       <div className="pipeline">
@@ -137,32 +140,32 @@ export default async function Dashboard({ searchParams }: { searchParams: Promis
           const on = sp.bucket === b.key;
           return (
             <Link key={b.key} href={href({ bucket: on ? undefined : b.key })} className={on ? "bucket active" : "bucket"}>
-              <span className="bucket-step">Step {b.n}</span>
+              <span className="bucket-step">{t("Step {n}", { n: b.n })}</span>
               <span className="bucket-n">{inStage.length}</span>
-              <span className="bucket-label">{b.label}</span>
-              <span className="bucket-hint">{need > 0 ? <span className="need">{need} need you</span> : b.hint}</span>
+              <span className="bucket-label">{t(b.label)}</span>
+              <span className="bucket-hint">{need > 0 ? <span className="need">{t("{n} need you", { n: need })}</span> : t(b.hint)}</span>
             </Link>
           );
         })}
       </div>
       <p className="subfilters">
         <Link href={href({ bucket: undefined })} className={!sp.bucket ? "active" : ""}>
-          In progress ({active.length})
+          {t("In progress ({n})", { n: active.length })}
         </Link>
         <Link href={href({ bucket: "draft" })} className={sp.bucket === "draft" ? "active" : ""}>
-          Drafts ({scoped.filter((d) => stageOf(d) === "draft").length})
+          {t("Drafts ({n})", { n: scoped.filter((d) => stageOf(d) === "draft").length })}
         </Link>
         <Link href={href({ bucket: "done" })} className={sp.bucket === "done" ? "active" : ""}>
-          Completed ({scoped.filter(isDone).length})
+          {t("Completed ({n})", { n: scoped.filter(isDone).length })}
         </Link>
       </p>
 
       {rows.length === 0 ? (
         <div className="card empty">
-          <p>{all.length === 0 ? "No agreements yet." : "Nothing in this view."}</p>
+          <p>{all.length === 0 ? t("No agreements yet.") : t("Nothing in this view.")}</p>
           {all.length === 0 && (
             <Link href="/deals/new" className="btn btn-primary">
-              Create the first agreement
+              {t("Create the first agreement")}
             </Link>
           )}
         </div>
@@ -171,12 +174,12 @@ export default async function Dashboard({ searchParams }: { searchParams: Promis
           <table className="table">
             <thead>
               <tr>
-                <th>Creator</th>
-                <th>Contract</th>
-                <th>Progress</th>
-                <th>Next step</th>
-                <th>Waiting</th>
-                {scope === "all" && <th>Manager</th>}
+                <th>{t("Creator")}</th>
+                <th>{t("Contract")}</th>
+                <th>{t("Progress")}</th>
+                <th>{t("Next step")}</th>
+                <th>{t("Waiting")}</th>
+                {scope === "all" && <th>{t("Manager")}</th>}
                 <th />
               </tr>
             </thead>
@@ -200,13 +203,13 @@ export default async function Dashboard({ searchParams }: { searchParams: Promis
                       </div>
                       {contracts > 1 && (
                         <Link href={href({ q: d.fields.handle, bucket: undefined, todo: undefined, scope: "all" })} className="small linkish">
-                          {contracts} contracts
+                          {t("{n} contracts", { n: contracts })}
                         </Link>
                       )}
                     </td>
                     <td>
                       <div className="nowrap">
-                        {medDate(d.fields.startDate) || "—"} → {medDate(d.fields.endDate) || "—"}
+                        {fmtDate(lang, d.fields.startDate) || "—"} → {fmtDate(lang, d.fields.endDate) || "—"}
                       </div>
                       <ul className="plist">
                         {itemsOf(d.fields).map((it, n) => (
@@ -215,29 +218,29 @@ export default async function Dashboard({ searchParams }: { searchParams: Promis
                           </li>
                         ))}
                       </ul>
-                      {d.custom > 0 && <span className="badge badge-warn" style={{ marginLeft: 0 }}>Custom terms</span>}
+                      {d.custom > 0 && <span className="badge badge-warn" style={{ marginLeft: 0 }}>{t("Custom terms")}</span>}
                     </td>
                     <td>
-                      {plain ? <span className="pill pill-neutral">{STAGE_LABEL[stage]}</span> : <Stepper done={stepsDone(d)} />}
-                      {!plain && <div className="small stage-label">{STAGE_LABEL[stage]}</div>}
+                      {plain ? <span className="pill pill-neutral">{t(STAGE_LABEL[stage])}</span> : <Stepper done={stepsDone(d)} t={t} />}
+                      {!plain && <div className="small stage-label">{t(STAGE_LABEL[stage])}</div>}
                     </td>
                     <td>
                       {next.owner !== "none" && (
                         <>
-                          <span className={`who who-${next.owner}`}>{OWNER_LABEL[next.owner]}</span>
-                          <span className="small"> {next.text}</span>
+                          <span className={`who who-${next.owner}`}>{t(OWNER_LABEL[next.owner])}</span>
+                          <span className="small"> {t(next.text)}</span>
                         </>
                       )}
                       {stage === "payout" && d.payment_expected && (
-                        <div className={transferOverdue(d) ? "small late" : "small muted"}>Expected {longDate(d.payment_expected)}</div>
+                        <div className={transferOverdue(d) ? "small late" : "small muted"}>{t("Expected {date}", { date: fmtDate(lang, d.payment_expected) })}</div>
                       )}
                     </td>
-                    <td className={!done && stage !== "draft" && days >= 5 ? "late" : ""}>{done || stage === "draft" ? <span className="muted">—</span> : days === 0 ? "today" : `${days}d`}</td>
+                    <td className={!done && stage !== "draft" && days >= 5 ? "late nowrap" : "nowrap"}>{done || stage === "draft" ? <span className="muted">—</span> : days === 0 ? t("today") : t("{n}d", { n: days })}</td>
                     {scope === "all" && <td className="small">{d.manager}</td>}
                     <td className="right nowrap">
                       {stage === "sign" && <CopyLink compact url={`${linkBase}/c/${linkToken(d)}`} />}{" "}
                       <Link href={`/deals/${d.id}`} className={next.owner === "you" ? "btn btn-sm btn-primary" : "btn btn-sm"}>
-                        Open
+                        {t("Open")}
                       </Link>
                     </td>
                   </tr>

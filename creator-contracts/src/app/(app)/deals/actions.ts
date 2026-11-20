@@ -3,6 +3,7 @@
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { requireUser } from "@/lib/session";
+import { getT } from "@/lib/lang";
 import { createDeal, now, stampedKey, updateDeal, type Deal } from "@/lib/deals";
 import { writeBytes } from "@/lib/store";
 import { defaultFields, joinNames, type Clause, type Fields, type Item } from "@/lib/template";
@@ -66,10 +67,11 @@ export async function saveDeal(id: string | null, rawFields: Partial<Fields>, ra
   const user = await requireUser();
   const fields = cleanFields(rawFields);
   const clauses = cleanClauses(rawClauses);
-  if (!fields.handle) return { error: "Enter the creator's TikTok handle." };
+  const { t } = await getT();
+  if (!fields.handle) return { error: t("Enter the creator's TikTok handle.") };
   if (send) {
     const miss = missingForSend(fields, clauses);
-    if (miss.length) return { error: `Before creating the link, fill in: ${miss.join(", ")}.` };
+    if (miss.length) return { error: t("Before creating the link, fill in: {list}.", { list: miss.map((m) => t(m)).join(", ") }) };
   }
 
   let dealId = id;
@@ -89,7 +91,7 @@ export async function saveDeal(id: string | null, rawFields: Partial<Fields>, ra
       if (send && !wasSent) d.sent_at = now();
       return { event: wasSent ? "revised" : send ? "link_created" : "edited" };
     });
-    if ("error" in res) return res;
+    if ("error" in res) return { error: t(res.error) };
   }
   revalidatePath("/");
   redirect(`/deals/${dealId}`);
@@ -142,9 +144,10 @@ export async function setPaymentRequest(id: string, requested: string, expected:
   const user = await requireUser();
   const req = String(requested || "").trim();
   const exp = String(expected || "").trim();
-  if (!isDate(req)) return { error: "Enter the date the transfer was requested." };
-  if (!isDate(exp)) return { error: "Enter the expected transfer date." };
-  if (exp < req) return { error: "The expected date cannot be before the request date." };
+  const { t } = await getT();
+  if (!isDate(req)) return { error: t("Enter the date the transfer was requested.") };
+  if (!isDate(exp)) return { error: t("Enter the expected transfer date.") };
+  if (exp < req) return { error: t("The expected date cannot be before the request date.") };
   const res = await updateDeal(id, user.name, (d) => {
     if (!d.content_done_at) return { error: "Confirm the content is complete first." };
     if (d.paid_at) return { error: "This deal is already marked as paid." };
@@ -153,7 +156,7 @@ export async function setPaymentRequest(id: string, requested: string, expected:
     d.payment_expected = exp;
     return { event: first ? "payment_requested" : "payment_date_changed", detail: `requested ${req}, expected ${exp}` };
   });
-  if ("error" in res) return res;
+  if ("error" in res) return { error: t(res.error) };
   revalidatePath("/");
   revalidatePath(`/deals/${id}`);
 }
@@ -197,14 +200,15 @@ export type UploadResult = { error: string } | { ok: true };
 export async function uploadStamped(id: string, _prev: UploadResult | null, formData: FormData): Promise<UploadResult> {
   const user = await requireUser();
   const file = formData.get("file");
-  if (!(file instanceof File) || file.size === 0) return { error: "Choose the stamped PDF file." };
-  if (file.size > 4 * 1024 * 1024) return { error: "File is larger than 4 MB. Compress the PDF and try again." };
+  const { t } = await getT();
+  if (!(file instanceof File) || file.size === 0) return { error: t("Choose the stamped PDF file.") };
+  if (file.size > 4 * 1024 * 1024) return { error: t("File is larger than 4 MB. Compress the PDF and try again.") };
   const bytes = Buffer.from(await file.arrayBuffer());
-  if (bytes.subarray(0, 5).toString("latin1") !== "%PDF-") return { error: "That file is not a PDF." };
+  if (bytes.subarray(0, 5).toString("latin1") !== "%PDF-") return { error: t("That file is not a PDF.") };
   const name = file.name.slice(0, 200);
   // Check state first, store the file, then record it on the deal.
   const check = await updateDeal(id, user.name, (d) => (d.signed_at ? null : { error: "The creator has not signed yet." }));
-  if ("error" in check) return check;
+  if ("error" in check) return { error: t(check.error) };
   await writeBytes(stampedKey(id), bytes, "application/pdf");
   const res = await updateDeal(id, user.name, (d) => {
     d.stamped_pdf_name = name;

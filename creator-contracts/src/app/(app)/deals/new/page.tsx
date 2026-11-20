@@ -1,11 +1,13 @@
+import { getT } from "@/lib/lang";
 import DealForm from "@/components/DealForm";
 import { DEFAULT_CLAUSES, defaultFields } from "@/lib/template";
 
-export default function NewDealPage() {
+export default async function NewDealPage() {
+  const { t } = await getT();
   const fields = { ...defaultFields(), effectiveDate: new Date().toISOString().slice(0, 10) };
   return (
     <>
-      <h1>New agreement</h1>
+      <h1>{t("New agreement")}</h1>
       <DealForm dealId={null} initialFields={fields} initialClauses={DEFAULT_CLAUSES} live={false} />
     </>
   );

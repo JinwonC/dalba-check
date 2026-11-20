@@ -1,18 +1,23 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { LangProvider } from "@/components/Lang";
+import LangToggle from "@/components/LangToggle";
+import { getT } from "@/lib/lang";
 import { endSession, requireUser } from "@/lib/session";
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const user = await requireUser();
+  const { t, lang } = await getT();
   return (
-    <>
+    <LangProvider lang={lang}>
       <header className="topbar">
         <Link href="/" className="brand">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src="/logo.png" alt="d'Alba" />
-          <span>Creator Contracts</span>
+          <span>{t("Creator Contracts")}</span>
         </Link>
         <div className="topbar-right">
+          <LangToggle lang={lang} />
           <span className="muted hide-sm">{user.name}</span>
           <form
             action={async () => {
@@ -21,11 +26,11 @@ export default async function AppLayout({ children }: { children: React.ReactNod
               redirect("/enter");
             }}
           >
-            <button className="btn btn-ghost btn-sm">Switch user</button>
+            <button className="btn btn-ghost btn-sm">{t("Switch user")}</button>
           </form>
         </div>
       </header>
       <main className="page">{children}</main>
-    </>
+    </LangProvider>
   );
 }

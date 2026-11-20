@@ -1,8 +1,10 @@
 "use client";
 
 import { useState } from "react";
+import { useT } from "@/components/Lang";
 
 export default function CopyLink({ url, compact }: { url: string; compact?: boolean }) {
+  const t = useT();
   const [copied, setCopied] = useState(false);
   const copy = async () => {
     try {
@@ -16,7 +18,7 @@ export default function CopyLink({ url, compact }: { url: string; compact?: bool
   if (compact) {
     return (
       <button type="button" className="btn btn-sm" onClick={copy}>
-        {copied ? "Copied" : "Copy link"}
+        {copied ? t("Copied") : t("Copy link")}
       </button>
     );
   }
@@ -24,7 +26,7 @@ export default function CopyLink({ url, compact }: { url: string; compact?: bool
     <div className="copy">
       <input readOnly value={url} onFocus={(e) => e.currentTarget.select()} aria-label="Creator link" />
       <button type="button" className="btn btn-primary" onClick={copy}>
-        {copied ? "Copied" : "Copy link"}
+        {copied ? t("Copied") : t("Copy link")}
       </button>
     </div>
   );

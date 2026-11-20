@@ -1,6 +1,7 @@
 "use client";
 
 import { useTransition } from "react";
+import { useT } from "@/components/Lang";
 
 /** Button that runs a server action, optionally after a confirm prompt. */
 export default function ConfirmButton({
@@ -14,6 +15,7 @@ export default function ConfirmButton({
   className?: string;
   children: React.ReactNode;
 }) {
+  const t = useT();
   const [pending, start] = useTransition();
   return (
     <button
@@ -25,7 +27,7 @@ export default function ConfirmButton({
         start(() => action());
       }}
     >
-      {pending ? "Working…" : children}
+      {pending ? t("Working…") : children}
     </button>
   );
 }

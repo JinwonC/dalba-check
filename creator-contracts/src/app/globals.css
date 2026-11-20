@@ -345,3 +345,11 @@ input, select, textarea { border-color: #cfcdc3; border-radius: var(--radius); }
 .notice.ok .btn-primary { background: var(--ink); }
 .login-card h1 { text-transform: uppercase; font-weight: 800; letter-spacing: -0.03em; }
 .login { background: var(--yellow); }
+
+/* Language switch */
+.lang { display: inline-flex; border: 1px solid var(--ink); border-radius: 999px; overflow: hidden; }
+.lang button { appearance: none; border: 0; background: transparent; cursor: pointer; padding: 5px 12px; font: inherit; font-size: 12.5px; line-height: 1.4; color: var(--muted); white-space: nowrap; }
+.lang button + button { border-left: 1px solid var(--ink); }
+.lang button[aria-pressed="true"] { background: var(--ink); color: #fff; font-weight: 700; }
+.login-lang { display: flex; justify-content: center; }
+.login { align-content: center; gap: 14px; }
