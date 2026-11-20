@@ -4,7 +4,10 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { requireUser } from "@/lib/session";
 import { getT } from "@/lib/lang";
-import { addVideo, createDeal, now, stampedKey, updateDeal, type Deal } from "@/lib/deals";
+import { getDeal, addVideo, createDeal, now, stampedKey, updateDeal, type Deal } from "@/lib/deals";
+import { bridgeConfigured, callBridge } from "@/lib/bridge";
+import { signedPdfBytes } from "@/lib/dealPdf";
+import { pdfFileName } from "@/lib/pdf";
 import { cleanUrl } from "@/lib/url-check";
 import { REQUEST_KINDS, requestText } from "@/lib/request-text";
 import { appendRequestRow, sheetConfigured } from "@/lib/sheets";
@@ -106,6 +109,78 @@ async function change(id: string, fn: (d: Deal) => { error: string } | { event: 
   if ("error" in res) throw new Error(res.error);
   revalidatePath("/");
   revalidatePath(`/deals/${id}`);
+}
+
+export type FolderResult = { error: string } | { url: string };
+
+/** Put the creator-signed PDF in the team Google Drive (one folder per contract) and return the folder link. */
+export async function uploadSignedToDrive(id: string): Promise<FolderResult> {
+  const user = await requireUser();
+  const { t } = await getT();
+  if (!bridgeConfigured()) return { error: t("Google Drive is not connected. Paste the folder link yourself.") };
+  const deal = await getDeal(id);
+  if (!deal) return { error: t("Deal not found.") };
+  const pdf = await signedPdfBytes(deal);
+  if (!pdf) return { error: t("The creator has not signed yet.") };
+  try {
+    const res = await callBridge({
+      action: "upload",
+      folderName: `@${deal.fields.handle} ${(deal.signed_at ?? "").slice(0, 10)} (${deal.id.slice(0, 6)})`,
+      fileName: pdfFileName(deal.fields, "Signed"),
+      data: pdf.toString("base64"),
+    });
+    const url = typeof res.url === "string" ? cleanUrl(res.url) : "";
+    if (!url) return { error: t("Google Drive did not return a folder link.") };
+    await updateDeal(id, user.name, (d) => {
+      d.folder = url;
+      return { event: "drive_uploaded", detail: url };
+    });
+    revalidatePath(`/deals/${id}`);
+    return { url };
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    return { error: /unknown action/.test(msg) ? t("Google Drive is not connected. Paste the folder link yourself.") : msg };
+  }
+}
+
+export type StampResult = { error: string } | { ok: true; sheet: "added" | "off" | "failed" | "kept" };
+
+/** Request the company stamp: records the folder link and adds a "계약서 상신" row to the work-request sheet. */
+export async function requestStamp(id: string, rawFolder: string): Promise<StampResult> {
+  const user = await requireUser();
+  const { t } = await getT();
+  const folder = cleanUrl(rawFolder);
+  if (!folder) return { error: t("Paste the folder link that holds the signed agreement (starting with https://).") };
+  let text = "";
+  let already = false;
+  const res = await updateDeal(id, user.name, (d) => {
+    if (!d.signed_at) return { error: "The creator has not signed yet." };
+    text = `계약서 1건 날인 요청 @${d.fields.handle}`;
+    already = !!d.stamp_request?.sheet_at;
+    d.folder = folder;
+    d.stamp_requested_at ??= now();
+    d.stamp_request = { text, sheet_at: d.stamp_request?.sheet_at };
+    return { event: "stamp_requested", detail: folder };
+  });
+  if ("error" in res) return { error: t(res.error) };
+
+  let sheet: "added" | "off" | "failed" | "kept" = already ? "kept" : "off";
+  if (!already && sheetConfigured()) {
+    try {
+      await appendRequestRow({ date: now().slice(0, 10), requester: user.name, kind: "계약서 상신", text, folder });
+      await updateDeal(id, user.name, (d) => {
+        if (d.stamp_request) d.stamp_request.sheet_at = now();
+        return { event: "sheet_row_added" };
+      });
+      sheet = "added";
+    } catch (e) {
+      console.error("stamp request sheet append failed", e);
+      sheet = "failed";
+    }
+  }
+  revalidatePath("/");
+  revalidatePath(`/deals/${id}`);
+  return { ok: true, sheet };
 }
 
 export async function markStamped(id: string) {

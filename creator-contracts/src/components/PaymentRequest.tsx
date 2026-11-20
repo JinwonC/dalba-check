@@ -13,17 +13,19 @@ type Props = {
   requested?: string | null;
   expected?: string | null;
   saved?: { kind: string; purpose: string; folder: string; sheet_at?: string } | null;
+  /** Folder used for the stamp request; the stamped copy is in the same place. */
+  folder?: string;
   sheetOn: boolean;
 };
 
 /** The transfer request: dates, purpose and the stamped-copy folder link, with the text that goes on the work-request sheet. */
-export default function PaymentRequest({ dealId, fields, videos, requested, expected, saved, sheetOn }: Props) {
+export default function PaymentRequest({ dealId, fields, videos, requested, expected, saved, folder: dealFolder, sheetOn }: Props) {
   const t = useT();
   const editing = !!requested;
   const [req, setReq] = useState(requested?.slice(0, 10) ?? new Date().toISOString().slice(0, 10));
   const [exp, setExp] = useState(expected ?? "");
   const [purpose, setPurpose] = useState(saved?.purpose ?? "");
-  const [folder, setFolder] = useState(saved?.folder ?? "");
+  const [folder, setFolder] = useState(saved?.folder || dealFolder || "");
   const [kind, setKind] = useState(saved?.kind ?? REQUEST_KINDS[0]);
   const [error, setError] = useState<string | null>(null);
   const [note, setNote] = useState<string | null>(null);
@@ -79,7 +81,7 @@ export default function PaymentRequest({ dealId, fields, videos, requested, expe
         <label className="field span-2">
           <span>{t("Folder link of the stamped agreement and invoice")}</span>
           <input value={folder} onChange={(e) => setFolder(e.target.value)} placeholder="https://" required inputMode="url" />
-          <small>{t("Upload the company-stamped copy to the drive yourself, then paste the link here.")}</small>
+          <small>{dealFolder ? t("Filled in from the stamp request. Finance puts the stamped copy in the same folder.") : t("Upload the company-stamped copy to the drive yourself, then paste the link here.")}</small>
         </label>
         <label className="field">
           <span>{t("Request type")}</span>

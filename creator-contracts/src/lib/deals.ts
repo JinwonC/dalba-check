@@ -60,6 +60,10 @@ export type Deal = Stamps & {
   manager_email?: string;
   /** What was sent to the internal work-request sheet for the transfer. */
   request?: { kind: string; purpose: string; folder: string; text: string; sheet_at?: string };
+  /** Drive folder holding the creator-signed PDF; finance adds the stamped copy to the same folder. */
+  folder?: string;
+  /** The stamp request sent to the work-request sheet. */
+  stamp_request?: { text: string; sheet_at?: string };
   fields: Fields;
   clauses: Clause[];
   billing_enc: string | null;
@@ -264,7 +268,9 @@ export function nextAction(d: Stamps, vp?: { done: number; total: number }): Nex
     case "changes":
       return { owner: "you", text: "Revise the agreement" };
     case "stamp":
-      return { owner: "you", text: "Get the company stamp, then mark it received" };
+      return d.stamp_requested_at
+        ? { owner: "finance", text: "Stamp requested. Mark it received when the stamped copy is in the folder" }
+        : { owner: "you", text: "Request the company stamp" };
     case "content":
       if (vp && vp.total > 0 && vp.done >= vp.total) return { owner: "you", text: "All video links are in. Mark content complete" };
       if (vp && vp.total > 0) return { owner: "creator", text: "Posting videos: {a} of {b} links in, {n} left", vars: { a: vp.done, b: vp.total, n: vp.total - vp.done } };
