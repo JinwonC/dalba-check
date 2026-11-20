@@ -29,6 +29,7 @@
 | `APP_KEY` | 매니저 화면 접근 코드. 프로덕션에서는 필수 |
 | `SESSION_SECRET` | 매니저 쿠키 서명 키 |
 | `ENCRYPTION_KEY` | 은행 정보 암호화 키. 바꾸면 기존 은행 정보를 복호화할 수 없음 |
+| `APPS_SCRIPT_URL`, `APPS_SCRIPT_KEY` | 구글 Apps Script 연결(`apps-script/Code.gs`). 서명 알림 메일과 업무 요청 시트 기록에 사용. 없으면 두 기능만 꺼짐 |
 | `BLOB_READ_WRITE_TOKEN` 등 | Vercel Blob 스토어를 프로젝트에 연결하면 자동 설정 |
 
 ## 로컬 실행
