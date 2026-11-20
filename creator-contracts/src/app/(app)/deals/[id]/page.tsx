@@ -97,7 +97,7 @@ export default async function DealPage({ params }: { params: Promise<{ id: strin
             {money(f.fee, f.currency)}
             {f.commissionPct > 0 && ` + ${f.commissionPct}% ${t("commission")}`} · {t("{a} to {b}", { a: medDate(f.startDate), b: medDate(f.endDate) })} · {f.country} · {t("Manager")}: {deal.manager}
             {deal.manager_email && ` (${deal.manager_email})`}
-            {deal.manager !== user.name && !cancelled && (
+            {(deal.manager_email ? deal.manager_email !== user.email : deal.manager !== user.name) && !cancelled && (
               <>
                 {" "}
                 <ConfirmButton action={reassignToMe.bind(null, id)} className="linkish" confirm={t("Make yourself the manager of this deal?")}>

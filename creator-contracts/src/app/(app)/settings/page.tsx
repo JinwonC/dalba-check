@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { bridgeConfigured } from "@/lib/bridge";
+import { emailRoute } from "@/lib/notify";
 import { getT } from "@/lib/lang";
 import { requireUser } from "@/lib/session";
 import BridgeTest from "./BridgeTest";
@@ -22,7 +23,14 @@ export default async function SettingsPage() {
             ? t("Connected through Google Apps Script. Use the buttons below to check that it really works.")
             : t("Not connected yet. Sign emails and sheet rows are switched off.")}
         </p>
-        {bridgeConfigured() && <BridgeTest email={user.email} />}
+        <p className="small muted">
+          {emailRoute(user.email) === "works"
+            ? t("Sign notifications are sent from your own NAVER WORKS mailbox to yourself.")
+            : emailRoute(user.email) === "bridge"
+              ? t("Sign notifications are sent from the shared Google account.")
+              : t("Sign notifications are off for your account.")}
+        </p>
+        {(bridgeConfigured() || emailRoute(user.email) !== "off") && <BridgeTest email={user.email} />}
         <p className="alert alert-warn" style={{ marginTop: 14, marginBottom: 0 }}>
           <strong>{t("Email not arriving?")}</strong> {t("Check your spam folder. Open the email, choose \"not spam\", and add the sender to your contacts. After that, notifications go to your inbox.")}
         </p>

@@ -4,7 +4,7 @@ const pdfFonts = ["./node_modules/pdfkit/package.json", "./node_modules/pdfkit/j
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  serverExternalPackages: ["@react-pdf/renderer"],
+  serverExternalPackages: ["@react-pdf/renderer", "nodemailer"],
   experimental: { serverActions: { bodySizeLimit: "5mb" } },
   outputFileTracingIncludes: {
     "/api/deals/*/pdf": pdfFonts,

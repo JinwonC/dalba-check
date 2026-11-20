@@ -76,6 +76,7 @@ export type Summary = Stamps & {
   id: string;
   secret: string;
   manager: string;
+  manager_email?: string;
   fields: Fields;
   custom: number;
   vp: { done: number; total: number };

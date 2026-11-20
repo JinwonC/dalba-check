@@ -31,7 +31,9 @@ export default async function Dashboard({ searchParams }: { searchParams: Promis
   const todoOnly = sp.todo === "1";
   const [all, linkBase] = await Promise.all([listDeals(), origin()]);
 
-  const scoped = all.filter((d) => scope === "all" || d.manager === user.name);
+  // "My deals" follows the email when the deal has one, so a renamed account keeps its deals.
+  const isMine = (d: Summary) => (d.manager_email ? d.manager_email === user.email : d.manager === user.name);
+  const scoped = all.filter((d) => scope === "all" || isMine(d));
   const active = scoped.filter((d) => !isDone(d));
   const mine = (d: Summary) => nextAction(d, d.vp).owner === "you";
   const perCreator = new Map<string, number>();

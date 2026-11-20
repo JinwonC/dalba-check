@@ -143,6 +143,17 @@ const KO: Record<string, string> = {
   "Added to the work-request sheet": "업무 요청 시트에 추가",
 
   // connections
+  "Sign in with the same ID and password as the outreach tool.": "아웃리치 프로그램과 같은 아이디와 비밀번호로 로그인하세요.",
+  "The ID or password is not correct.": "아이디 또는 비밀번호가 올바르지 않습니다.",
+  ID: "아이디",
+  Password: "비밀번호",
+  "Sign in": "로그인",
+  "Sign out": "로그아웃",
+  "Sign notifications are sent from your own NAVER WORKS mailbox to yourself.": "서명 알림은 본인 네이버웍스 메일에서 본인에게 발송됩니다.",
+  "Sign notifications are sent from the shared Google account.": "서명 알림은 공용 구글 계정에서 발송됩니다.",
+  "Sign notifications are off for your account.": "이 계정은 서명 알림이 꺼져 있습니다.",
+  "Test email sent from your own NAVER WORKS mailbox to {email}.": "본인 네이버웍스 메일에서 {email} 주소로 테스트 메일을 보냈습니다.",
+  "Email is not connected.": "메일이 연결되어 있지 않습니다.",
   "The first email may land in your spam folder. Mark it as \"not spam\" once and later ones will reach your inbox.": "첫 알림 메일은 스팸함으로 갈 수 있습니다. 한 번만 \"스팸 아님\"으로 해제하면 이후에는 받은편지함으로 옵니다.",
   "Email not arriving?": "메일이 안 오나요?",
   "Check your spam folder. Open the email, choose \"not spam\", and add the sender to your contacts. After that, notifications go to your inbox.": "스팸함을 확인하세요. 메일을 열어 \"스팸 아님\"을 누르고 보낸 사람을 주소록에 추가하면, 이후 알림은 받은편지함으로 옵니다.",
