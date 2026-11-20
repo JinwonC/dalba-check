@@ -4,7 +4,7 @@ import { callBridge } from "@/lib/bridge";
 import { sendToManager } from "@/lib/notify";
 import { requireUser } from "@/lib/session";
 
-type Result = { error: string } | { message: string };
+type Result = { error: string } | { message: string; vars?: Record<string, string> };
 
 /** Exercise the Apps Script bridge so a manager can confirm email and sheet writes work. */
 export async function testBridge(what: "ping" | "email" | "row"): Promise<Result> {
@@ -23,8 +23,9 @@ export async function testBridge(what: "ping" | "email" | "row"): Promise<Result
       await callBridge({ action: "row", date: new Date().toISOString().slice(0, 10), requester: user.name, kind: "테스트", text: "연결 테스트 행입니다. 지워도 됩니다.", folder: "" });
       return { message: "Test row added to the sheet." };
     }
-    await callBridge({ action: "ping" });
-    return { message: "Connection works." };
+    const res = await callBridge({ action: "ping" });
+    if (typeof res.drive === "string") return { message: "Connection works. Drive folder: {url}", vars: { url: res.drive } };
+    return { message: res.drive === false ? "Connection works, but the Drive folder could not be opened." : "Connection works." };
   } catch (e) {
     return { error: e instanceof Error ? e.message : String(e) };
   }

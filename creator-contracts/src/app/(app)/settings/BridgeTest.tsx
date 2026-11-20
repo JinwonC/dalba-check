@@ -12,7 +12,7 @@ export default function BridgeTest({ email }: { email: string }) {
     start(async () => {
       setResult(null);
       const res = await testBridge(what);
-      setResult("error" in res ? { ok: false, text: res.error } : { ok: true, text: t(res.message, { email }) });
+      setResult("error" in res ? { ok: false, text: res.error } : { ok: true, text: t(res.message, { email, ...(res.vars ?? {}) }) });
     });
   return (
     <>

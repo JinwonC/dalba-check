@@ -193,6 +193,8 @@ const KO: Record<string, string> = {
   "Test email sent to {email}.": "{email} 주소로 테스트 메일을 보냈습니다.",
   "Test row added to the sheet.": "시트에 테스트 행을 추가했습니다.",
   "Connection works.": "연결이 정상입니다.",
+  "Connection works. Drive folder: {url}": "연결이 정상입니다. 드라이브 폴더: {url}",
+  "Connection works, but the Drive folder could not be opened.": "연결은 정상이지만 드라이브 폴더를 열 수 없습니다.",
 
   // deal page
   "← Agreements": "← 계약 목록",
