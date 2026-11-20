@@ -2,6 +2,7 @@ import {
   CLIENT_NAME,
   campaignName,
   deliverables,
+  invoiceLine,
   itemLines,
   fill,
   longDate,
@@ -195,20 +196,17 @@ export function InvoiceDoc({
         <thead>
           <tr>
             <th>Description</th>
-            <th>Quantity</th>
             <th>Amount</th>
           </tr>
         </thead>
         <tbody>
           <tr>
-            <td>{fields.invoiceDescription}</td>
-            <td>1</td>
+            <td>{invoiceLine(fields)}</td>
             <td>{total}</td>
           </tr>
         </tbody>
         <tfoot>
           <tr>
-            <td />
             <th>Total Due</th>
             <td>{total}</td>
           </tr>

@@ -205,6 +205,12 @@ export function medDate(iso: string | null | undefined): string {
   return `${mon} ${Number(m[3])}, ${m[1]}`;
 }
 
+/** Invoice line: the description with the number of videos in brackets, e.g. "… Package (10 videos)". */
+export function invoiceLine(f: Fields): string {
+  const n = totalVideos(f);
+  return n > 0 ? `${f.invoiceDescription} (${n} video${n === 1 ? "" : "s"})` : f.invoiceDescription;
+}
+
 export function deliverables(f: Fields): string {
   return `${f.deliverableCount} x ${f.deliverableType}`;
 }

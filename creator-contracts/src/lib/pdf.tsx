@@ -6,6 +6,7 @@ import {
   CLIENT_NAME,
   campaignName,
   deliverables,
+  invoiceLine,
   itemLines,
   fill,
   longDate,
@@ -195,18 +196,15 @@ function DealPdf({ fields, clauses, billing, signature, invoiceNumber, issueDate
 
         <View style={s.invHead}>
           <Text style={[s.c1, s.b]}>DESCRIPTION</Text>
-          <Text style={[s.c2, s.b]}>QUANTITY</Text>
           <Text style={[s.c3, s.b]}>AMOUNT</Text>
         </View>
         <View style={s.invRow}>
-          <Text style={s.c1}>{fields.invoiceDescription}</Text>
-          <Text style={s.c2}>1</Text>
+          <Text style={s.c1}>{invoiceLine(fields)}</Text>
           <Text style={s.c3}>{total}</Text>
         </View>
         <View style={{ flexDirection: "row", paddingVertical: 8, paddingHorizontal: 4 }}>
-          <Text style={s.c1} />
-          <Text style={[s.c2, s.b]}>TOTAL DUE</Text>
-          <Text style={[s.c3, { borderBottomWidth: 0.75, borderColor: "#888" }]}>{total}</Text>
+          <Text style={[s.c1, s.b, { textAlign: "right", paddingRight: 16 }]}>TOTAL DUE</Text>
+          <Text style={[s.c3, s.b, { borderBottomWidth: 0.75, borderColor: "#888" }]}>{total}</Text>
         </View>
 
         <Text style={[s.b, { marginTop: 18, paddingBottom: 3, marginBottom: 8, borderBottomWidth: 0.75, borderColor: "#888" }]}>
