@@ -17,6 +17,9 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           <span>{t("Creator Contracts")}</span>
         </Link>
         <div className="topbar-right">
+          <Link href="/settings" className="small muted hide-sm">
+            {t("Connections")}
+          </Link>
           <LangToggle lang={lang} />
           <span className="muted hide-sm">{user.name}</span>
           <form

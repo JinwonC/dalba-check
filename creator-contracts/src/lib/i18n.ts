@@ -142,6 +142,18 @@ const KO: Record<string, string> = {
   "Edit the transfer request": "송금 요청 내용 수정",
   "Added to the work-request sheet": "업무 요청 시트에 추가",
 
+  // connections
+  Connections: "연결 설정",
+  "Email and work-request sheet": "알림 메일 및 업무 요청 시트",
+  "Connected through Google Apps Script. Use the buttons below to check that it really works.": "구글 Apps Script로 연결되어 있습니다. 아래 버튼으로 실제로 동작하는지 확인하세요.",
+  "Not connected yet. Sign emails and sheet rows are switched off.": "아직 연결되지 않았습니다. 서명 알림 메일과 시트 기록이 꺼져 있습니다.",
+  "Check connection": "연결 확인",
+  "Send me a test email": "나에게 테스트 메일 보내기",
+  "Add a test row to the sheet": "시트에 테스트 행 추가",
+  "Test email sent to {email}.": "{email} 주소로 테스트 메일을 보냈습니다.",
+  "Test row added to the sheet.": "시트에 테스트 행을 추가했습니다.",
+  "Connection works.": "연결이 정상입니다.",
+
   // deal page
   "← Agreements": "← 계약 목록",
   "commission": "커미션",
