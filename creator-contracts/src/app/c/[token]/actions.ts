@@ -1,6 +1,8 @@
 "use server";
 
 import { headers } from "next/headers";
+import { after } from "next/server";
+import { notifySigned } from "@/lib/notify";
 import { revalidatePath } from "next/cache";
 import { encryptJson, sha256 } from "@/lib/crypto";
 import { addVideo, getDealByToken, updateDeal } from "@/lib/deals";
@@ -51,6 +53,16 @@ export async function signDeal(
     return { event: "signed" };
   });
   if ("error" in res) return res;
+  // Tell the manager, after the response has gone out so signing never waits on email.
+  const host = h.get("x-forwarded-host") || h.get("host") || "";
+  const signed = res.deal;
+  after(async () => {
+    try {
+      await notifySigned({ to: signed.manager_email ?? "", manager: signed.manager, handle: signed.fields.handle, signer: name, dealUrl: `https://${host}/deals/${signed.id}` });
+    } catch (e) {
+      console.error("sign notification failed", e);
+    }
+  });
   revalidatePath(`/c/${token}`);
   return { ok: true };
 }

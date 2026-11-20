@@ -12,6 +12,7 @@ import { clauseState, DEFAULT_CLAUSES, itemsOf, money } from "@/lib/template";
 import { fmtDate, fmtWhen, type Lang, type T } from "@/lib/i18n";
 import { getT } from "@/lib/lang";
 import { origin } from "@/lib/url";
+import { sheetConfigured } from "@/lib/sheets";
 import PaymentRequest from "@/components/PaymentRequest";
 import { addVideoLink, cancelDeal, clearPaymentRequest, markContentDone, markPaid, markStamped, reassignToMe, removeVideoLink, undoContentDone, undoStamped } from "../actions";
 
@@ -39,6 +40,7 @@ const EVENT_LABEL: Record<string, string> = {
   cancelled: "Cancelled",
   reassigned: "Manager changed",
   video_added: "Video link added",
+  sheet_row_added: "Added to the work-request sheet",
   video_removed: "Video link removed",
 };
 
@@ -94,6 +96,7 @@ export default async function DealPage({ params }: { params: Promise<{ id: strin
           <p className="muted">
             {money(f.fee, f.currency)}
             {f.commissionPct > 0 && ` + ${f.commissionPct}% ${t("commission")}`} · {t("{a} to {b}", { a: medDate(f.startDate), b: medDate(f.endDate) })} · {f.country} · {t("Manager")}: {deal.manager}
+            {deal.manager_email && ` (${deal.manager_email})`}
             {deal.manager !== user.name && !cancelled && (
               <>
                 {" "}
@@ -192,7 +195,7 @@ export default async function DealPage({ params }: { params: Promise<{ id: strin
                   no: deal.invoice_number ?? "",
                 })}
               </p>
-              <PaymentRequest dealId={id} />
+              <PaymentRequest dealId={id} fields={f} videos={(deal.videos ?? []).map((v) => v.url)} saved={deal.request} sheetOn={sheetConfigured()} />
               <ConfirmButton action={undoContentDone.bind(null, id)} className="btn btn-sm btn-ghost" confirm={t("Undo the content confirmation?")}>
                 {t("Undo previous step")}
               </ConfirmButton>
@@ -211,7 +214,26 @@ export default async function DealPage({ params }: { params: Promise<{ id: strin
                   {t("Undo request")}
                 </ConfirmButton>
               </div>
-              <PaymentRequest dealId={id} requested={deal.payment_requested_at} expected={deal.payment_expected} />
+              {deal.request?.folder && (
+                <p className="small">
+                  {t("Stamped copy")}:{" "}
+                  <a href={deal.request.folder} target="_blank" rel="noopener noreferrer">
+                    {deal.request.folder}
+                  </a>
+                </p>
+              )}
+              <details className="replace">
+                <summary>{t("Edit the transfer request")}</summary>
+                <PaymentRequest
+                  dealId={id}
+                  fields={f}
+                  videos={(deal.videos ?? []).map((v) => v.url)}
+                  requested={deal.payment_requested_at}
+                  expected={deal.payment_expected}
+                  saved={deal.request}
+                  sheetOn={sheetConfigured()}
+                />
+              </details>
             </Step>
           </ol>
         </section>

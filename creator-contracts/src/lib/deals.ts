@@ -57,6 +57,9 @@ export type Deal = Stamps & {
   id: string;
   secret: string; // second half of the creator link
   manager: string;
+  manager_email?: string;
+  /** What was sent to the internal work-request sheet for the transfer. */
+  request?: { kind: string; purpose: string; folder: string; text: string; sheet_at?: string };
   fields: Fields;
   clauses: Clause[];
   billing_enc: string | null;
@@ -143,12 +146,13 @@ export async function getDealByToken(token: string): Promise<Deal | null> {
   return crypto.timingSafeEqual(a, b) ? deal : null;
 }
 
-export async function createDeal(manager: string, fields: Fields, clauses: Clause[], send: boolean): Promise<Deal> {
+export async function createDeal(manager: string, email: string, fields: Fields, clauses: Clause[], send: boolean): Promise<Deal> {
   const t = now();
   const deal: Deal = {
     id: crypto.randomBytes(12).toString("base64url"),
     secret: crypto.randomBytes(18).toString("base64url"),
     manager,
+    manager_email: email,
     fields,
     clauses,
     billing_enc: null,

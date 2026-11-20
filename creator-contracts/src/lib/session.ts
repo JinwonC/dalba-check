@@ -6,7 +6,20 @@ import { redirect } from "next/navigation";
 // once per browser. The name is what "My deals" and the activity log use.
 
 const COOKIE = "dalba_manager";
-export type Manager = { name: string };
+export type Manager = { name: string; email: string };
+
+const emailDomains = () =>
+  (process.env.ALLOWED_EMAIL_DOMAINS || "dalbausa.com,dalba.com")
+    .split(",")
+    .map((d) => d.trim().toLowerCase())
+    .filter(Boolean);
+
+/** Normalized work email, or "" if it is not on a company domain. */
+export function workEmail(input: string): string {
+  const email = String(input || "").trim().toLowerCase();
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || email.length > 120) return "";
+  return emailDomains().includes(email.split("@")[1]) ? email : "";
+}
 
 function secret(): string {
   const s = process.env.SESSION_SECRET;
@@ -32,8 +45,8 @@ export function checkAccessCode(code: string): boolean {
   return safeEqual(code.trim(), process.env.APP_KEY);
 }
 
-export async function startSession(name: string) {
-  const payload = Buffer.from(JSON.stringify({ name })).toString("base64url");
+export async function startSession(name: string, email: string) {
+  const payload = Buffer.from(JSON.stringify({ name, email })).toString("base64url");
   (await cookies()).set(COOKIE, `${payload}.${sign(payload)}`, {
     httpOnly: true,
     sameSite: "lax",
@@ -53,8 +66,9 @@ export async function currentUser(): Promise<Manager | null> {
   const [payload, mac] = raw.split(".");
   if (!payload || !mac || !safeEqual(mac, sign(payload))) return null;
   try {
-    const { name } = JSON.parse(Buffer.from(payload, "base64url").toString("utf8"));
-    return typeof name === "string" && name ? { name } : null;
+    const { name, email } = JSON.parse(Buffer.from(payload, "base64url").toString("utf8"));
+    // Sessions from before emails were collected are asked to enter again.
+    return typeof name === "string" && name && typeof email === "string" && email ? { name, email } : null;
   } catch {
     return null;
   }

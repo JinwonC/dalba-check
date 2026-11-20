@@ -368,3 +368,10 @@ input, select, textarea { border-color: #cfcdc3; border-radius: var(--radius); }
 .vadd { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 8px; }
 .vadd input { flex: 1 1 240px; }
 .hero-date { font-size: 18px !important; letter-spacing: -0.01em !important; padding-top: 6px; }
+
+/* Transfer request form */
+.req { display: grid; gap: 12px; margin-top: 10px; }
+.req-preview { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 12px 14px; }
+.req-preview-head { display: flex; justify-content: space-between; align-items: center; gap: 10px; margin-bottom: 8px; }
+.req-preview pre { margin: 0 0 8px; white-space: pre-wrap; overflow-wrap: anywhere; font: 13px/1.6 var(--sans); }
+.req > .btn { justify-self: start; }

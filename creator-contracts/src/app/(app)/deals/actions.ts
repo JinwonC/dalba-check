@@ -6,6 +6,8 @@ import { requireUser } from "@/lib/session";
 import { getT } from "@/lib/lang";
 import { addVideo, createDeal, now, stampedKey, updateDeal, type Deal } from "@/lib/deals";
 import { cleanUrl } from "@/lib/url-check";
+import { REQUEST_KINDS, requestText } from "@/lib/request-text";
+import { appendRequestRow, sheetConfigured } from "@/lib/sheets";
 import { writeBytes } from "@/lib/store";
 import { defaultFields, joinNames, type Clause, type Fields, type Item } from "@/lib/template";
 
@@ -77,7 +79,7 @@ export async function saveDeal(id: string | null, rawFields: Partial<Fields>, ra
 
   let dealId = id;
   if (!dealId) {
-    dealId = (await createDeal(user.name, fields, clauses, send)).id;
+    dealId = (await createDeal(user.name, user.email, fields, clauses, send)).id;
   } else {
     const res = await updateDeal(dealId, user.name, (d) => {
       if (d.signed_at) return { error: "This agreement is already signed and can no longer be edited." };
@@ -140,26 +142,60 @@ export async function undoContentDone(id: string) {
 
 const isDate = (v: string) => /^\d{4}-\d{2}-\d{2}$/.test(v) && !isNaN(new Date(v).getTime());
 
-/** Record when the transfer was requested internally and when it is expected to go out. */
-export async function setPaymentRequest(id: string, requested: string, expected: string): Promise<{ error: string } | undefined> {
+export type TransferInput = { requested: string; expected: string; purpose: string; folder: string; kind: string };
+export type TransferResult = { error: string } | { ok: true; sheet: "added" | "off" | "failed" | "kept" };
+
+/**
+ * Record the transfer request: when it was requested, when it is expected, the
+ * purpose and the folder link of the stamped copy. The first time, the same
+ * information is added to the internal work-request sheet (if connected).
+ */
+export async function setPaymentRequest(id: string, input: TransferInput): Promise<TransferResult> {
   const user = await requireUser();
-  const req = String(requested || "").trim();
-  const exp = String(expected || "").trim();
   const { t } = await getT();
+  const req = String(input.requested || "").trim();
+  const exp = String(input.expected || "").trim();
+  const purpose = String(input.purpose || "").trim().slice(0, 500);
+  const folder = String(input.folder || "").trim() ? cleanUrl(input.folder) : "";
+  const kind = (REQUEST_KINDS as readonly string[]).includes(input.kind) ? input.kind : REQUEST_KINDS[0];
   if (!isDate(req)) return { error: t("Enter the date the transfer was requested.") };
   if (!isDate(exp)) return { error: t("Enter the expected transfer date.") };
   if (exp < req) return { error: t("The expected date cannot be before the request date.") };
+  if (!purpose) return { error: t("Enter the purpose and expected effect.") };
+  if (!folder) return { error: t("Paste the folder link of the stamped agreement (starting with https://).") };
+
+  let text = "";
+  let alreadyOnSheet = false;
   const res = await updateDeal(id, user.name, (d) => {
     if (!d.content_done_at) return { error: "Confirm the content is complete first." };
     if (d.paid_at) return { error: "This deal is already marked as paid." };
     const first = !d.payment_requested_at;
+    text = requestText(d.fields, { purpose, expected: exp, videos: (d.videos ?? []).map((v) => v.url) });
+    alreadyOnSheet = !!d.request?.sheet_at;
     d.payment_requested_at = req;
     d.payment_expected = exp;
+    d.request = { kind, purpose, folder, text, sheet_at: d.request?.sheet_at };
     return { event: first ? "payment_requested" : "payment_date_changed", detail: `requested ${req}, expected ${exp}` };
   });
   if ("error" in res) return { error: t(res.error) };
+
+  let sheet: "added" | "off" | "failed" | "kept" = alreadyOnSheet ? "kept" : "off";
+  if (!alreadyOnSheet && sheetConfigured()) {
+    try {
+      await appendRequestRow({ date: req, requester: user.name, kind, text, folder });
+      await updateDeal(id, user.name, (d) => {
+        if (d.request) d.request.sheet_at = now();
+        return { event: "sheet_row_added" };
+      });
+      sheet = "added";
+    } catch (e) {
+      console.error("work-request sheet append failed", e);
+      sheet = "failed";
+    }
+  }
   revalidatePath("/");
   revalidatePath(`/deals/${id}`);
+  return { ok: true, sheet };
 }
 
 export async function clearPaymentRequest(id: string) {
@@ -167,6 +203,7 @@ export async function clearPaymentRequest(id: string) {
     if (d.paid_at) return { error: "Already marked as paid" };
     d.payment_requested_at = null;
     d.payment_expected = null;
+    // Keep the purpose and folder link so they do not have to be typed again.
     return { event: "payment_request_cleared" };
   });
 }
@@ -191,6 +228,7 @@ export async function reassignToMe(id: string) {
   const user = await requireUser();
   await change(id, (d) => {
     d.manager = user.name;
+    d.manager_email = user.email;
     return { event: "reassigned", detail: user.name };
   });
 }
