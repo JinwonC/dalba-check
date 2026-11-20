@@ -6,13 +6,14 @@ import CopyLink from "@/components/CopyLink";
 import StampUpload from "@/components/StampUpload";
 import { ContractDoc, InvoiceDoc } from "@/components/Document";
 import Stepper from "@/components/Stepper";
-import { STAGE_LABEL, billingOf, getDeal, linkToken, nextAction, stageOf, stepsDone, transferOverdue } from "@/lib/deals";
+import { STAGE_LABEL, billingOf, getDeal, linkToken, nextAction, stageOf, stepsDone, transferOverdue, videoGroups, videoProgress } from "@/lib/deals";
+import VideoLinks from "@/components/VideoLinks";
 import { clauseState, DEFAULT_CLAUSES, itemsOf, money } from "@/lib/template";
 import { fmtDate, fmtWhen, type Lang, type T } from "@/lib/i18n";
 import { getT } from "@/lib/lang";
 import { origin } from "@/lib/url";
 import PaymentRequest from "@/components/PaymentRequest";
-import { cancelDeal, clearPaymentRequest, markContentDone, markPaid, markStamped, reassignToMe, undoContentDone, undoStamped } from "../actions";
+import { addVideoLink, cancelDeal, clearPaymentRequest, markContentDone, markPaid, markStamped, reassignToMe, removeVideoLink, undoContentDone, undoStamped } from "../actions";
 
 export const dynamic = "force-dynamic";
 
@@ -37,6 +38,8 @@ const EVENT_LABEL: Record<string, string> = {
   paid: "Marked as paid",
   cancelled: "Cancelled",
   reassigned: "Manager changed",
+  video_added: "Video link added",
+  video_removed: "Video link removed",
 };
 
 function Step({ done, current, title, at, note, lang, children }: { done: boolean; current: boolean; title: string; at?: string | null; note?: string; lang: Lang; children?: React.ReactNode }) {
@@ -70,7 +73,8 @@ export default async function DealPage({ params }: { params: Promise<{ id: strin
   const events = [...deal.events].reverse();
   const f = deal.fields;
   const stage = stageOf(deal);
-  const next = nextAction(deal);
+  const vp = videoProgress(deal);
+  const next = nextAction(deal, vp);
   const overdue = transferOverdue(deal);
   const billing = billingOf(deal);
   const link = `${base}/c/${linkToken(deal)}`;
@@ -121,7 +125,7 @@ export default async function DealPage({ params }: { params: Promise<{ id: strin
           {stage !== "draft" && <Stepper done={stepsDone(deal)} labels t={t} />}
           {next.owner !== "none" && (
             <p className={next.owner === "you" ? "nextup nextup-you" : "nextup"}>
-              <strong>{t(next.owner === "you" ? "Your next step:" : next.owner === "creator" ? "Waiting on the creator:" : "Waiting on finance:")}</strong> {t(next.text)}
+              <strong>{t(next.owner === "you" ? "Your next step:" : next.owner === "creator" ? "Waiting on the creator:" : "Waiting on finance:")}</strong> {t(next.text, next.vars)}
             </p>
           )}
           <ol className="steps">
@@ -169,7 +173,7 @@ export default async function DealPage({ params }: { params: Promise<{ id: strin
 
             <Step lang={lang} done={!!deal.content_done_at} current={stage === "content"} title={t("3. Creator delivers the content")} at={deal.content_done_at}>
               <p>
-                {t("When all {n} videos are posted and the creator has met the agreement, confirm it here.", { n: f.deliverableCount })}
+                {t("Video links submitted: {a} of {b}.", { a: vp.done, b: vp.total })} {t("When all {n} videos are posted and the creator has met the agreement, confirm it here.", { n: f.deliverableCount })}
               </p>
               <div className="row">
                 <ConfirmButton action={markContentDone.bind(null, id)} className="btn btn-primary">
@@ -216,15 +220,45 @@ export default async function DealPage({ params }: { params: Promise<{ id: strin
       {!cancelled && (
         <section className="card">
           <h2>
-            {t("Products")} · {t("{a} to {b}", { a: medDate(f.startDate), b: medDate(f.endDate) })}
+            {t("Videos")} · {t("{a} to {b}", { a: medDate(f.startDate), b: medDate(f.endDate) })}
+            {signed && (
+              <span className="muted small">
+                {" "}
+                · {t("{a} of {b} submitted", { a: vp.done, b: vp.total })}
+                {vp.total - vp.done > 0 && ` · ${t("{n} left", { n: vp.total - vp.done })}`}
+              </span>
+            )}
           </h2>
-          <ul className="files">
-            {itemsOf(f).map((it, n) => (
-              <li key={n}>
-                {it.count} x {it.product}
-              </li>
-            ))}
-          </ul>
+          {signed ? (
+            <>
+              <p className="hint">{t("The creator pastes each posted video's link on their page (the same link they signed with). You can also add a link they sent you directly.")}</p>
+              <CopyLink url={link} />
+              <VideoLinks
+                groups={videoGroups(deal)}
+                onAdd={addVideoLink.bind(null, id)}
+                onRemove={removeVideoLink.bind(null, id)}
+                labels={{
+                  submitted: t("{a} of {b} submitted"),
+                  remaining: t("{n} left"),
+                  allIn: t("All in"),
+                  placeholder: t("Paste a posted video link"),
+                  add: t("Add link"),
+                  adding: t("Saving…"),
+                  remove: t("Remove"),
+                  confirmRemove: t("Remove this link?"),
+                  none: t("No links yet."),
+                }}
+              />
+            </>
+          ) : (
+            <ul className="files">
+              {itemsOf(f).map((it, n) => (
+                <li key={n}>
+                  {it.count} x {it.product}
+                </li>
+              ))}
+            </ul>
+          )}
         </section>
       )}
 
@@ -272,6 +306,7 @@ export default async function DealPage({ params }: { params: Promise<{ id: strin
               <span className="muted small">{when(e.at)}</span>
               <span>
                 {t(EVENT_LABEL[e.type] ?? e.type)}
+                {e.detail && (e.type === "video_added" || e.type === "video_removed") && <span className="muted small"> · {e.detail}</span>}
                 <span className="muted small"> · {e.actor}</span>
               </span>
             </li>

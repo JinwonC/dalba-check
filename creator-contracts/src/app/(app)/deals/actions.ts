@@ -4,7 +4,8 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { requireUser } from "@/lib/session";
 import { getT } from "@/lib/lang";
-import { createDeal, now, stampedKey, updateDeal, type Deal } from "@/lib/deals";
+import { addVideo, createDeal, now, stampedKey, updateDeal, type Deal } from "@/lib/deals";
+import { cleanUrl } from "@/lib/url-check";
 import { writeBytes } from "@/lib/store";
 import { defaultFields, joinNames, type Clause, type Fields, type Item } from "@/lib/template";
 
@@ -216,6 +217,40 @@ export async function uploadStamped(id: string, _prev: UploadResult | null, form
     return { event: "stamped_uploaded", detail: name };
   });
   if ("error" in res) return res;
+  revalidatePath("/");
+  revalidatePath(`/deals/${id}`);
+  return { ok: true };
+}
+
+type VideoResult = { error: string } | { ok: true };
+
+/** Record a posted-video link on the creator's behalf (for links sent outside the site). */
+export async function addVideoLink(id: string, item: number, rawUrl: string): Promise<VideoResult> {
+  const user = await requireUser();
+  const { t } = await getT();
+  const url = cleanUrl(rawUrl);
+  if (!url) return { error: t("Enter a full link starting with https://") };
+  const res = await updateDeal(id, user.name, (d) => {
+    if (!d.signed_at) return { error: "The creator has not signed yet." };
+    const problem = addVideo(d, item, url, user.name);
+    return problem ? { error: problem } : { event: "video_added", detail: url };
+  });
+  if ("error" in res) return { error: t(res.error) };
+  revalidatePath("/");
+  revalidatePath(`/deals/${id}`);
+  return { ok: true };
+}
+
+export async function removeVideoLink(id: string, videoId: string): Promise<VideoResult> {
+  const user = await requireUser();
+  const { t } = await getT();
+  const res = await updateDeal(id, user.name, (d) => {
+    const hit = (d.videos ?? []).find((v) => v.id === videoId);
+    if (!hit) return { error: "Deal not found." };
+    d.videos = (d.videos ?? []).filter((v) => v.id !== videoId);
+    return { event: "video_removed", detail: hit.url };
+  });
+  if ("error" in res) return { error: t(res.error) };
   revalidatePath("/");
   revalidatePath(`/deals/${id}`);
   return { ok: true };

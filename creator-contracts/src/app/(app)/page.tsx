@@ -33,7 +33,7 @@ export default async function Dashboard({ searchParams }: { searchParams: Promis
 
   const scoped = all.filter((d) => scope === "all" || d.manager === user.name);
   const active = scoped.filter((d) => !isDone(d));
-  const mine = (d: Summary) => nextAction(d).owner === "you";
+  const mine = (d: Summary) => nextAction(d, d.vp).owner === "you";
   const perCreator = new Map<string, number>();
   for (const d of all) perCreator.set(d.fields.handle.toLowerCase(), (perCreator.get(d.fields.handle.toLowerCase()) ?? 0) + 1);
   const term = (sp.q || "").trim().toLowerCase();
@@ -186,7 +186,7 @@ export default async function Dashboard({ searchParams }: { searchParams: Promis
             <tbody>
               {rows.map((d) => {
                 const stage = stageOf(d);
-                const next = nextAction(d);
+                const next = nextAction(d, d.vp);
                 const contracts = perCreator.get(d.fields.handle.toLowerCase()) ?? 1;
                 const done = isDone(d);
                 const days = daysSince(waitingSince(d));
@@ -223,12 +223,18 @@ export default async function Dashboard({ searchParams }: { searchParams: Promis
                     <td>
                       {plain ? <span className="pill pill-neutral">{t(STAGE_LABEL[stage])}</span> : <Stepper done={stepsDone(d)} t={t} />}
                       {!plain && <div className="small stage-label">{t(STAGE_LABEL[stage])}</div>}
+                      {d.signed_at && !d.cancelled_at && d.vp.total > 0 && (
+                        <div className="small muted nowrap">
+                          {t("Videos {a}/{b}", { a: d.vp.done, b: d.vp.total })}
+                          {d.vp.total - d.vp.done > 0 ? ` · ${t("{n} left", { n: d.vp.total - d.vp.done })}` : ""}
+                        </div>
+                      )}
                     </td>
                     <td>
                       {next.owner !== "none" && (
                         <>
                           <span className={`who who-${next.owner}`}>{t(OWNER_LABEL[next.owner])}</span>
-                          <span className="small"> {t(next.text)}</span>
+                          <span className="small"> {t(next.text, next.vars)}</span>
                         </>
                       )}
                       {stage === "payout" && d.payment_expected && (

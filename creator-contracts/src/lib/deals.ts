@@ -1,7 +1,7 @@
 import crypto from "node:crypto";
 import { decryptJson } from "./crypto";
 import { listKeys, mutate, readText } from "./store";
-import { customCount, type Billing, type Clause, type Fields, type Signature } from "./template";
+import { customCount, itemsOf, type Billing, type Clause, type Fields, type Signature } from "./template";
 
 // Storage layout (private store):
 //   deals/<id>.json   full deal document, including its activity log
@@ -23,6 +23,34 @@ export type Stamps = {
   change_requested_at: string | null;
 };
 
+// ---- Video links -------------------------------------------------------------
+// After signing, the creator pastes the link of each posted video so we can see
+// how many of the contracted videos are still to come. No approval step.
+
+export type Video = { id: string; item: number; url: string; at: string; by: string };
+export type VideoGroup = { item: number; product: string; count: number; videos: Video[] };
+
+export function videoGroups(d: { fields: Fields; videos?: Video[] }): VideoGroup[] {
+  const all = Array.isArray(d.videos) ? d.videos : [];
+  return itemsOf(d.fields).map((it, i) => ({ item: i, product: it.product, count: it.count, videos: all.filter((v) => v.item === i) }));
+}
+
+export function videoProgress(d: { fields: Fields; videos?: Video[] }): { done: number; total: number } {
+  const groups = videoGroups(d);
+  return { done: groups.reduce((n, g) => n + Math.min(g.videos.length, g.count), 0), total: groups.reduce((n, g) => n + g.count, 0) };
+}
+
+/** Add a posted-video link to a deal document (mutates). Returns an error message or null. */
+export function addVideo(d: Deal, item: number, url: string, by: string): string | null {
+  const group = videoGroups(d).find((g) => g.item === item);
+  if (!group) return "Product not found.";
+  if (group.videos.length >= group.count) return "All videos for this product are already submitted.";
+  const all = Array.isArray(d.videos) ? d.videos : [];
+  if (all.some((v) => v.url === url)) return "This link was already submitted.";
+  d.videos = [...all, { id: crypto.randomBytes(6).toString("base64url"), item, url, at: now(), by }];
+  return null;
+}
+
 export type DealEvent = { at: string; actor: string; type: string; detail?: string };
 
 export type Deal = Stamps & {
@@ -36,6 +64,7 @@ export type Deal = Stamps & {
   invoice_number: string | null;
   change_request: string | null;
   stamped_pdf_name: string | null;
+  videos?: Video[];
   events: DealEvent[];
 };
 
@@ -46,6 +75,7 @@ export type Summary = Stamps & {
   manager: string;
   fields: Fields;
   custom: number;
+  vp: { done: number; total: number };
 };
 
 const ID = /^[A-Za-z0-9_-]{16}$/;
@@ -56,9 +86,9 @@ export const now = () => new Date().toISOString();
 export const linkToken = (d: { id: string; secret: string }) => `${d.id}.${d.secret}`;
 
 function summarize(d: Deal): Summary {
-  const { clauses, billing_enc, signature, invoice_number, change_request, stamped_pdf_name, events, ...rest } = d;
-  void billing_enc, signature, invoice_number, change_request, stamped_pdf_name, events;
-  return { ...rest, custom: customCount(clauses) };
+  const { clauses, billing_enc, signature, invoice_number, change_request, stamped_pdf_name, events, videos, ...rest } = d;
+  void billing_enc, signature, invoice_number, change_request, stamped_pdf_name, events, videos;
+  return { ...rest, custom: customCount(clauses), vp: videoProgress(d) };
 }
 
 // Dashboard cache, per server instance: a deal is re-read only when the
@@ -218,9 +248,9 @@ export function transferOverdue(d: Stamps): boolean {
 }
 
 /** Who has to move next, and what they have to do. */
-export type Next = { owner: "you" | "creator" | "finance" | "none"; text: string };
+export type Next = { owner: "you" | "creator" | "finance" | "none"; text: string; vars?: Record<string, number> };
 
-export function nextAction(d: Stamps): Next {
+export function nextAction(d: Stamps, vp?: { done: number; total: number }): Next {
   switch (stageOf(d)) {
     case "draft":
       return { owner: "you", text: "Finish the terms and create the link" };
@@ -231,6 +261,8 @@ export function nextAction(d: Stamps): Next {
     case "stamp":
       return { owner: "you", text: "Get the company stamp, then mark it received" };
     case "content":
+      if (vp && vp.total > 0 && vp.done >= vp.total) return { owner: "you", text: "All video links are in. Mark content complete" };
+      if (vp && vp.total > 0) return { owner: "creator", text: "Posting videos: {a} of {b} links in, {n} left", vars: { a: vp.done, b: vp.total, n: vp.total - vp.done } };
       return { owner: "creator", text: "Delivering content. Mark complete when done" };
     case "transfer":
       return { owner: "you", text: "Request the transfer and record the dates" };

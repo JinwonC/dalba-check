@@ -1,5 +1,8 @@
 import type { Metadata } from "next";
-import { billingOf, getDealByToken, updateDeal } from "@/lib/deals";
+import { billingOf, getDealByToken, updateDeal, videoGroups, videoProgress } from "@/lib/deals";
+import { longDate } from "@/lib/template";
+import VideoLinks from "@/components/VideoLinks";
+import { submitVideo, withdrawVideo } from "./actions";
 import { ContractDoc, InvoiceDoc } from "@/components/Document";
 import SignFlow from "./SignFlow";
 
@@ -27,22 +30,67 @@ export default async function CreatorPage({ params }: { params: Promise<{ token:
 
   if (deal.signed_at) {
     const billing = billingOf(deal)!;
+    const vp = videoProgress(deal);
+    const left = vp.total - vp.done;
     return (
       <Shell>
-        <div className="card notice ok">
-          <h1>Signed. Thank you!</h1>
-          <p>
-            Your agreement with d&apos;Alba is signed and your invoice is on file. There is nothing else you need to send. We will add
-            our company seal and process your payment after all content is posted.
+        <header className="hero">
+          <p className="kicker">d&apos;Alba · creator agreement</p>
+          <h1>@{deal.fields.handle}</h1>
+          <p className="hero-sub">
+            Your agreement is signed and your invoice is on file. Each time you post a video for this campaign, paste its link below so we can
+            keep track. Keep this page&apos;s link.
           </p>
-          <a className="btn btn-primary" href={`/c/${token}/pdf`}>
-            Download your copy (PDF)
-          </a>
-        </div>
-        <div className="paper-wrap">
-          <ContractDoc fields={deal.fields} clauses={deal.clauses} billing={billing} signature={deal.signature} />
-          <InvoiceDoc fields={deal.fields} billing={billing} invoiceNumber={deal.invoice_number} issueDate={deal.signed_at} />
-        </div>
+          <dl className="hero-stats">
+            <div>
+              <dt>Videos submitted</dt>
+              <dd>
+                {vp.done} / {vp.total}
+              </dd>
+            </div>
+            <div>
+              <dt>Left to post</dt>
+              <dd>{left}</dd>
+            </div>
+            <div>
+              <dt>Post by</dt>
+              <dd className="hero-date">{longDate(deal.fields.endDate)}</dd>
+            </div>
+          </dl>
+        </header>
+        <section className="card">
+          <h2>Your videos</h2>
+          <VideoLinks
+            groups={videoGroups(deal)}
+            onAdd={submitVideo.bind(null, token)}
+            onRemove={withdrawVideo.bind(null, token)}
+            labels={{
+              submitted: "{a} of {b} submitted",
+              remaining: "{n} left",
+              allIn: "All in",
+              placeholder: "Paste the link to your posted video",
+              add: "Submit link",
+              adding: "Sending…",
+              remove: "Remove",
+              confirmRemove: "Remove this link?",
+              none: "No links yet.",
+            }}
+          />
+        </section>
+        <details className="card">
+          <summary>
+            <h2>Your signed agreement and invoice</h2>
+          </summary>
+          <p>
+            <a className="btn" href={`/c/${token}/pdf`}>
+              Download your copy (PDF)
+            </a>
+          </p>
+          <div className="paper-wrap">
+            <ContractDoc fields={deal.fields} clauses={deal.clauses} billing={billing} signature={deal.signature} />
+            <InvoiceDoc fields={deal.fields} billing={billing} invoiceNumber={deal.invoice_number} issueDate={deal.signed_at} />
+          </div>
+        </details>
       </Shell>
     );
   }

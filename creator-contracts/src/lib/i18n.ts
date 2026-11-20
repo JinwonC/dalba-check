@@ -94,6 +94,29 @@ const KO: Record<string, string> = {
   "Expected date passed. Check and mark as sent": "예상일이 지났습니다. 확인 후 송금 완료 표시",
   "Transfer in progress": "송금 진행 중",
 
+  // videos
+  Videos: "영상",
+  "Videos {a}/{b}": "영상 {a}/{b}",
+  "{n} left": "{n}개 남음",
+  "{a} of {b} submitted": "{b}개 중 {a}개 제출",
+  "All in": "모두 제출",
+  "Paste a posted video link": "게시된 영상 링크 붙여넣기",
+  "Add link": "링크 추가",
+  Remove: "삭제",
+  "Remove this link?": "이 링크를 삭제할까요?",
+  "No links yet.": "아직 제출된 링크가 없습니다.",
+  "The creator pastes each posted video's link on their page (the same link they signed with). You can also add a link they sent you directly.":
+    "크리에이터가 서명했던 그 링크에서 게시한 영상 링크를 직접 제출합니다. 따로 받은 링크는 여기서 대신 추가할 수 있습니다.",
+  "Video links submitted: {a} of {b}.": "영상 링크 {b}개 중 {a}개 제출됨.",
+  "All video links are in. Mark content complete": "영상 링크가 모두 들어왔습니다. 수급 완료 표시",
+  "Posting videos: {a} of {b} links in, {n} left": "영상 게시 중: {b}개 중 {a}개 제출, {n}개 남음",
+  "Video link added": "영상 링크 추가",
+  "Video link removed": "영상 링크 삭제",
+  "Enter a full link starting with https://": "https://로 시작하는 전체 링크를 입력하세요.",
+  "Product not found.": "제품을 찾을 수 없습니다.",
+  "All videos for this product are already submitted.": "이 제품의 영상은 이미 모두 제출되었습니다.",
+  "This link was already submitted.": "이미 제출된 링크입니다.",
+
   // deal page
   "← Agreements": "← 계약 목록",
   "commission": "커미션",
