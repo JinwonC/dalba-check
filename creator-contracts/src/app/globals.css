@@ -375,3 +375,4 @@ input, select, textarea { border-color: #cfcdc3; border-radius: var(--radius); }
 .req-preview-head { display: flex; justify-content: space-between; align-items: center; gap: 10px; margin-bottom: 8px; }
 .req-preview pre { margin: 0 0 8px; white-space: pre-wrap; overflow-wrap: anywhere; font: 13px/1.6 var(--sans); }
 .req > .btn { justify-self: start; }
+.field small.tip { background: var(--yellow-wash); border-radius: 6px; padding: 5px 8px; color: var(--ink); }

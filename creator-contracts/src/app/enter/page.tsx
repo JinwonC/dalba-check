@@ -42,6 +42,7 @@ export default async function EnterPage({ searchParams }: { searchParams: Promis
               <span>{t("Work email")}</span>
               <input name="email" type="email" required autoComplete="email" placeholder="you@dalbausa.com" />
               <small>{t("We email you here when your creator signs.")}</small>
+              <small className="tip">{t("The first email may land in your spam folder. Mark it as \"not spam\" once and later ones will reach your inbox.")}</small>
             </label>
             {accessCodeSet() && (
               <label className="field">

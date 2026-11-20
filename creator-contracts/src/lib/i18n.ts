@@ -143,6 +143,9 @@ const KO: Record<string, string> = {
   "Added to the work-request sheet": "업무 요청 시트에 추가",
 
   // connections
+  "The first email may land in your spam folder. Mark it as \"not spam\" once and later ones will reach your inbox.": "첫 알림 메일은 스팸함으로 갈 수 있습니다. 한 번만 \"스팸 아님\"으로 해제하면 이후에는 받은편지함으로 옵니다.",
+  "Email not arriving?": "메일이 안 오나요?",
+  "Check your spam folder. Open the email, choose \"not spam\", and add the sender to your contacts. After that, notifications go to your inbox.": "스팸함을 확인하세요. 메일을 열어 \"스팸 아님\"을 누르고 보낸 사람을 주소록에 추가하면, 이후 알림은 받은편지함으로 옵니다.",
   Connections: "연결 설정",
   "Email and work-request sheet": "알림 메일 및 업무 요청 시트",
   "Connected through Google Apps Script. Use the buttons below to check that it really works.": "구글 Apps Script로 연결되어 있습니다. 아래 버튼으로 실제로 동작하는지 확인하세요.",
