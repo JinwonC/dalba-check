@@ -7,15 +7,17 @@
  *   (3) put the creator-signed PDF in a Google Drive folder and return its link.
  *
  * Setup: open the work-request sheet → Extensions → Apps Script → paste this
- * file → fill in KEY and DRIVE_PARENT → run "authorize" once → Deploy →
+ * file → fill in KEY → run "authorize" once → Deploy →
  * Manage deployments → Edit → New version (keeps the same web app URL).
  */
 const KEY = 'PASTE_THE_KEY_HERE';
 const SHEET_ID = '1Xmrzo8JR-73v2HGIehXHVl79ytnsI8TfNqdgxGG-UqI';
 const TAB = 'test';
 const ALLOWED_DOMAINS = ['dalbausa.com', 'dalba.com'];
-// Link (or ID) of the Google Drive folder where contract folders are created.
-const DRIVE_PARENT = 'PASTE_THE_DRIVE_FOLDER_LINK_HERE';
+// Where contract folders are created. Leave empty and the script makes a folder
+// with the name below in this account's Drive the first time it is needed.
+const DRIVE_PARENT = '';
+const DRIVE_FOLDER_NAME = '크리에이터 계약서 (Creator Contracts)';
 
 function doPost(e) {
   let body;
@@ -39,7 +41,7 @@ function doPost(e) {
       sheet.appendRow(['', body.date, body.requester, body.kind, body.text, body.folder]);
     } else if (body.action === 'upload') {
       // One folder per contract; uploading again replaces the file of the same name.
-      const parent = DriveApp.getFolderById(folderId(DRIVE_PARENT));
+      const parent = parentFolder();
       const found = parent.getFoldersByName(body.folderName);
       const folder = found.hasNext() ? found.next() : parent.createFolder(body.folderName);
       const old = folder.getFilesByName(body.fileName);
@@ -60,10 +62,16 @@ function folderId(linkOrId) {
   return m ? m[1] : String(linkOrId).trim();
 }
 
+/** The folder that holds one sub-folder per contract; created on first use if DRIVE_PARENT is empty. */
+function parentFolder() {
+  if (DRIVE_PARENT) return DriveApp.getFolderById(folderId(DRIVE_PARENT));
+  const found = DriveApp.getRootFolder().getFoldersByName(DRIVE_FOLDER_NAME);
+  return found.hasNext() ? found.next() : DriveApp.getRootFolder().createFolder(DRIVE_FOLDER_NAME);
+}
+
 function driveReady() {
   try {
-    DriveApp.getFolderById(folderId(DRIVE_PARENT)).getName();
-    return true;
+    return parentFolder().getUrl();
   } catch (err) {
     return false;
   }
@@ -77,5 +85,5 @@ function out(obj) {
 function authorize() {
   SpreadsheetApp.openById(SHEET_ID).getSheetByName(TAB);
   MailApp.getRemainingDailyQuota();
-  Logger.log('Drive folder: ' + DriveApp.getFolderById(folderId(DRIVE_PARENT)).getName());
+  Logger.log('Drive folder: ' + parentFolder().getUrl());
 }
