@@ -1,0 +1,99 @@
+<!doctype html><html lang="ko"><head><meta charset="utf-8"><style>
+:root{--ink:#141414;--yellow:#f2c029;--wash:#fbefc4;--line:#e3e1d8;--muted:#6f6c62;--bg:#f9f9f7}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font-family:system-ui,-apple-system,"Apple SD Gothic Neo","Malgun Gothic","Noto Sans CJK KR",sans-serif;-webkit-font-smoothing:antialiased;word-break:keep-all}
+.wrap{width:1200px;padding:40px}
+.hero{background:var(--yellow);border-radius:14px;padding:30px 34px}
+.kicker{font-size:13px;font-weight:700;letter-spacing:.14em;margin:0}
+h1{font-size:46px;font-weight:800;letter-spacing:-.035em;margin:8px 0 8px;line-height:1.05}
+.hero p{margin:0;font-size:17px;line-height:1.5}
+.legend{display:flex;gap:18px;margin-top:18px;padding-top:16px;border-top:2px solid var(--ink);font-size:15px;align-items:center;flex-wrap:wrap}
+.who{display:inline-block;border-radius:999px;font-size:13px;font-weight:700;padding:3px 11px;white-space:nowrap}
+.me{background:var(--ink);color:#fff}.hero .me{background:var(--ink)}
+.cr{background:#fff;border:2px solid var(--ink)}
+.fi{background:#e9e6dc;color:#3d3b35}
+.auto{background:var(--wash);border:1px dashed var(--ink)}
+.steps{margin-top:22px;display:grid;gap:12px}
+.step{display:grid;grid-template-columns:86px 1fr 340px;background:#fff;border:1px solid var(--line);border-radius:14px;overflow:hidden}
+.num{background:var(--ink);color:#fff;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px}
+.num b{font-size:34px;font-weight:800;line-height:1}.num span{font-size:11px;letter-spacing:.1em;opacity:.75}
+.num.prep{background:#fff;color:var(--ink);border-right:1px solid var(--line)}
+.num.prep b{font-size:17px}
+.body{padding:18px 22px}
+.body h2{margin:0 0 10px;font-size:23px;letter-spacing:-.02em}
+.act{display:flex;gap:10px;align-items:flex-start;margin-top:8px;font-size:16.5px;line-height:1.5}
+.act .who{margin-top:2px;flex:none;min-width:74px;text-align:center}
+.btn{display:inline-block;background:var(--yellow);border-radius:6px;padding:0 7px;font-weight:700;white-space:nowrap}
+.side{background:var(--wash);border-left:1px dashed var(--ink);padding:18px 20px;font-size:15.5px;line-height:1.55}
+.side h3{margin:0 0 6px;font-size:12px;letter-spacing:.12em;font-weight:800}
+.side ul{margin:0;padding-left:18px}.side li{margin-bottom:3px}
+.sheet{display:block;margin-top:6px;font-family:ui-monospace,Menlo,monospace;font-size:12.5px;background:#fff;border:1px solid var(--line);border-radius:6px;padding:5px 8px;line-height:1.45}
+.foot{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:14px}
+.card{background:#fff;border:1px solid var(--ink);border-radius:14px;padding:18px 22px}
+.card h2{margin:0 0 10px;font-size:19px}
+.card ul{margin:0;padding-left:20px;font-size:16px;line-height:1.7}
+table{width:100%;border-collapse:collapse;font-size:15.5px}td{padding:5px 0;border-top:1px solid var(--line)}tr:first-child td{border-top:0}td:last-child{text-align:right}
+.url{margin-top:14px;text-align:center;font-size:15px;color:var(--muted)}
+</style></head><body><div class="wrap">
+<div class="hero">
+  <p class="kicker">D'ALBA · 크리에이터 파트너십</p>
+  <h1>크리에이터 계약, 이렇게 진행합니다</h1>
+  <p>계약서·인보이스 서명부터 송금까지 5단계. 파일을 주고받지 않고 링크 하나로 끝냅니다.</p>
+  <div class="legend"><span>누가 하나요?</span><span class="who me">매니저 (나)</span><span class="who cr">크리에이터</span><span class="who fi">재무팀</span><span class="who auto">자동으로 처리</span></div>
+</div>
+<div class="steps">
+  <div class="step"><div class="num prep"><b>준비</b></div>
+    <div class="body"><h2>계약서 만들고 링크 보내기</h2>
+      <div class="act"><span class="who me">매니저</span><span><span class="btn">+ 새 계약서</span> 에서 핸들, 제품별 영상 수, 기간, 금액 입력 → <span class="btn">저장하고 링크 만들기</span> → 링크를 크리에이터에게 전달</span></div></div>
+    <div class="side"><h3>자동</h3><ul><li>계약서와 인보이스가 함께 만들어집니다</li><li>조항은 크리에이터별로 수정 가능</li></ul></div></div>
+
+  <div class="step"><div class="num"><b>1</b><span>STEP</span></div>
+    <div class="body"><h2>크리에이터 서명</h2>
+      <div class="act"><span class="who cr">크리에이터</span><span>링크에서 계약서 확인 → 은행 정보 입력 → 인보이스 확인 → 이름을 타이핑해 서명</span></div>
+      <div class="act"><span class="who me">매니저</span><span>할 일 없음. 알림 메일을 기다립니다</span></div></div>
+    <div class="side"><h3>자동</h3><ul><li>서명본 PDF 완성 (계약서 + 인보이스)</li><li>담당 매니저 웍스 메일로 <b>서명 알림</b></li></ul></div></div>
+
+  <div class="step"><div class="num"><b>2</b><span>STEP</span></div>
+    <div class="body"><h2>회사 직인 (계약서 상신)</h2>
+      <div class="act"><span class="who me">매니저</span><span><span class="btn">구글 드라이브에 자동 저장</span> → <span class="btn">날인 요청</span></span></div>
+      <div class="act"><span class="who fi">재무팀</span><span>같은 드라이브 폴더에 날인본을 넣어줍니다</span></div>
+      <div class="act"><span class="who me">매니저</span><span>날인본이 올라오면 <span class="btn">회사 직인 받음</span></span></div></div>
+    <div class="side"><h3>자동</h3><ul><li>서명본이 팀 드라이브 폴더에 저장</li><li>업무 요청 시트에 한 행 추가</li></ul><span class="sheet">계약서 상신 · 계약서 1건 날인 요청 @핸들 · 폴더 링크</span></div></div>
+
+  <div class="step"><div class="num"><b>3</b><span>STEP</span></div>
+    <div class="body"><h2>콘텐츠 수급</h2>
+      <div class="act"><span class="who cr">크리에이터</span><span>영상을 올릴 때마다 <b>서명했던 그 링크</b>에서 영상 링크 제출</span></div>
+      <div class="act"><span class="who me">매니저</span><span>영상이 모두 들어오면 <span class="btn">콘텐츠 수급 완료</span></span></div></div>
+    <div class="side"><h3>자동</h3><ul><li>"10개 중 3개 제출, 7개 남음" 표시</li><li>DM으로 받은 링크는 매니저가 대신 추가 가능</li></ul></div></div>
+
+  <div class="step"><div class="num"><b>4</b><span>STEP</span></div>
+    <div class="body"><h2>송금 요청 (지출결의서 상신)</h2>
+      <div class="act"><span class="who me">매니저</span><span>송금 요청일, 예상 송금일, <b>추진 목적 및 기대효과</b> 입력 → <span class="btn">송금 요청함</span></span></div></div>
+    <div class="side"><h3>자동</h3><ul><li>크리에이터·금액·영상 링크 자동 입력</li><li>폴더 링크는 2단계 것을 그대로 사용</li><li>업무 요청 시트에 한 행 추가</li></ul></div></div>
+
+  <div class="step"><div class="num"><b>5</b><span>STEP</span></div>
+    <div class="body"><h2>송금 완료</h2>
+      <div class="act"><span class="who fi">재무팀</span><span>예상 송금일에 송금</span></div>
+      <div class="act"><span class="who me">매니저</span><span>송금 확인 후 <span class="btn">송금 완료</span></span></div></div>
+    <div class="side"><h3>자동</h3><ul><li>예상일이 지나면 대시보드에 빨갛게 표시</li><li>완료하면 "완료" 목록으로 이동</li></ul></div></div>
+</div>
+<div class="foot">
+  <div class="card"><h2>대시보드에서 "다음 할 일" 읽는 법</h2>
+    <table>
+      <tr><td>링크 보냄, 서명 전</td><td><span class="who cr">크리에이터</span></td></tr>
+      <tr><td>서명됨 → 날인 요청하기</td><td><span class="who me">나</span></td></tr>
+      <tr><td>날인 요청함</td><td><span class="who fi">재무</span></td></tr>
+      <tr><td>영상 올리는 중</td><td><span class="who cr">크리에이터</span></td></tr>
+      <tr><td>영상 다 들어옴 → 수급 완료, 송금 요청</td><td><span class="who me">나</span></td></tr>
+      <tr><td>송금 요청함</td><td><span class="who fi">재무</span></td></tr>
+    </table></div>
+  <div class="card"><h2>기억할 것</h2>
+    <ul>
+      <li>로그인은 <b>아웃리치 프로그램과 같은 아이디·비밀번호</b></li>
+      <li>크리에이터에게 보내는 링크는 <b>하나</b>: 서명도, 영상 제출도 같은 링크</li>
+      <li>드라이브 폴더도 <b>하나</b>: 날인 요청과 송금 요청이 같은 폴더</li>
+      <li>대시보드 맨 위 <b>"내 조치가 필요합니다"</b> 숫자만 0으로 만들면 됩니다</li>
+      <li>서명 후에는 계약서를 수정할 수 없습니다</li>
+    </ul></div>
+</div>
+<p class="url">dalba-creator-contracts.vercel.app</p>
+</div></body></html>
