@@ -6,8 +6,6 @@ import { requireUser } from "@/lib/session";
 import { getT } from "@/lib/lang";
 import { getDeal, addVideo, createDeal, now, stampedKey, updateDeal, type Deal } from "@/lib/deals";
 import { bridgeConfigured, callBridge } from "@/lib/bridge";
-import { signedPdfBytes } from "@/lib/dealPdf";
-import { pdfFileName } from "@/lib/pdf";
 import { cleanUrl } from "@/lib/url-check";
 import { REQUEST_KINDS, requestText } from "@/lib/request-text";
 import { appendRequestRow, sheetConfigured } from "@/lib/sheets";
@@ -120,6 +118,9 @@ export async function uploadSignedToDrive(id: string): Promise<FolderResult> {
   if (!bridgeConfigured()) return { error: t("Google Drive is not connected. Paste the folder link yourself.") };
   const deal = await getDeal(id);
   if (!deal) return { error: t("Deal not found.") };
+  // Loaded only here so pages that share this file do not pull in the PDF engine.
+  const { signedPdfBytes } = await import("@/lib/dealPdf");
+  const { pdfFileName } = await import("@/lib/pdf");
   const pdf = await signedPdfBytes(deal);
   if (!pdf) return { error: t("The creator has not signed yet.") };
   try {

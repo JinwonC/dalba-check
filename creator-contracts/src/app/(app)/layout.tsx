@@ -18,6 +18,9 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           <span>{t("Creator Contracts")}</span>
         </Link>
         <div className="topbar-right">
+          <Link href="/guide" className="nav-guide">
+            {t("How it works")}
+          </Link>
           <Link href="/settings" className="small muted hide-sm">
             {t("Connections")}
           </Link>

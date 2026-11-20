@@ -6,9 +6,10 @@ const pdfFonts = ["./node_modules/pdfkit/package.json", "./node_modules/pdfkit/j
 const nextConfig = {
   serverExternalPackages: ["@react-pdf/renderer", "nodemailer"],
   experimental: { serverActions: { bodySizeLimit: "5mb" } },
+  // Server actions that build the PDF are bundled with the pages that call them,
+  // so every route needs the fonts, not only the download routes.
   outputFileTracingIncludes: {
-    "/api/deals/*/pdf": pdfFonts,
-    "/c/*/pdf": pdfFonts,
+    "/**": pdfFonts,
   },
 };
 export default nextConfig;
