@@ -423,3 +423,18 @@ export async function deleteDeal(id: string, typedHandle: string): Promise<{ err
   revalidatePath("/");
   redirect("/");
 }
+
+/** Delete several deals at once from the dashboard. */
+export async function deleteDeals(formData: FormData): Promise<void> {
+  const user = await requireUser();
+  const ids = [...new Set(formData.getAll("ids").map(String))].slice(0, 200);
+  for (const id of ids) {
+    const deal = await getDeal(id);
+    if (!deal) continue;
+    console.log(`deal deleted: ${id} @${deal.fields.handle} by ${user.name} <${user.email}>`);
+    await destroyDeal(id);
+  }
+  revalidatePath("/");
+  const back = String(formData.get("back") || "/");
+  redirect(back.startsWith("/") && !back.startsWith("//") ? back : "/");
+}

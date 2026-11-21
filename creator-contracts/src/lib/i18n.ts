@@ -204,6 +204,14 @@ const KO: Record<string, string> = {
   "Delete permanently": "영구 삭제",
   "The handle does not match.": "핸들이 일치하지 않습니다.",
 
+  "Select all": "전체 선택",
+  "Delete {n} agreement(s) permanently?": "계약 {n}건을 영구 삭제할까요?",
+  "{n} of them are signed. Download the signed PDFs first if you need a record.": "이 중 {n}건은 서명이 끝난 계약입니다. 기록이 필요하면 먼저 서명본 PDF를 내려받으세요.",
+  "This cannot be undone.": "되돌릴 수 없습니다.",
+  "{n} selected": "{n}건 선택됨",
+  "Tick agreements to delete several at once.": "여러 건을 한 번에 삭제하려면 왼쪽 체크박스를 선택하세요.",
+  "Delete selected": "선택한 계약 삭제",
+
   // guide
   "How it works": "진행 방법",
   "How a creator contract works": "크리에이터 계약, 이렇게 진행합니다",

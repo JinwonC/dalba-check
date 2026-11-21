@@ -444,3 +444,12 @@ input, select, textarea { border-color: #cfcdc3; border-radius: var(--radius); }
 .danger-zone > summary h2 { color: var(--danger); }
 .btn-delete { background: var(--danger); border-color: var(--danger); color: #fff; margin-top: 10px; }
 .btn-delete:hover { background: #b81f15; border-color: #b81f15; }
+
+/* Bulk delete */
+.table .pick { width: 34px; padding-right: 0; }
+.table .pick input { margin: 0; }
+.row-todo td.pick { box-shadow: inset 4px 0 0 var(--yellow); }
+.row-todo td:nth-child(2) { box-shadow: none; }
+.bulkbar { display: flex; align-items: center; justify-content: flex-end; gap: 12px; font-size: 13px; color: var(--muted); margin-bottom: 8px; min-height: 32px; }
+.bulkbar .btn-delete { margin-top: 0; }
+.bulkbar.on { color: var(--ink); font-weight: 600; }

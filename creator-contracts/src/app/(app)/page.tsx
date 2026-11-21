@@ -2,6 +2,8 @@ import Link from "next/link";
 import { requireUser } from "@/lib/session";
 import CopyLink from "@/components/CopyLink";
 import Stepper from "@/components/Stepper";
+import { DeleteSelected, SelectAll } from "@/components/BulkDelete";
+import { deleteDeals } from "./deals/actions";
 import { STAGE_LABEL, daysSince, isDone, linkToken, listDeals, nextAction, stageOf, stepsDone, transferOverdue, waitingSince, type Stage, type Summary } from "@/lib/deals";
 import { isLive, itemsOf, money } from "@/lib/template";
 import { fmtDate } from "@/lib/i18n";
@@ -172,10 +174,16 @@ export default async function Dashboard({ searchParams }: { searchParams: Promis
           )}
         </div>
       ) : (
+        <form action={deleteDeals}>
+          <input type="hidden" name="back" value={href({})} />
+          <DeleteSelected />
         <div className="table-wrap">
           <table className="table">
             <thead>
               <tr>
+                <th className="pick">
+                  <SelectAll />
+                </th>
                 <th>{t("Creator")}</th>
                 <th>{t("Contract")}</th>
                 <th>{t("Progress")}</th>
@@ -195,6 +203,9 @@ export default async function Dashboard({ searchParams }: { searchParams: Promis
                 const plain = stage === "cancelled" || stage === "draft";
                 return (
                   <tr key={d.id} className={next.owner === "you" ? "row-todo" : ""}>
+                    <td className="pick">
+                      <input type="checkbox" name="ids" value={d.id} data-handle={d.fields.handle} data-signed={d.signed_at ? "1" : "0"} aria-label={`@${d.fields.handle}`} />
+                    </td>
                     <td>
                       <Link href={`/deals/${d.id}`} className="strong">
                         @{d.fields.handle}
@@ -263,6 +274,7 @@ export default async function Dashboard({ searchParams }: { searchParams: Promis
             </tbody>
           </table>
         </div>
+        </form>
       )}
     </>
   );
