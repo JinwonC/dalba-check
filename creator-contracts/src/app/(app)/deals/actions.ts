@@ -10,7 +10,7 @@ import { cleanUrl } from "@/lib/url-check";
 import { REQUEST_KINDS, requestText } from "@/lib/request-text";
 import { appendRequestRow, sheetConfigured } from "@/lib/sheets";
 import { writeBytes } from "@/lib/store";
-import { defaultFields, joinNames, type Clause, type Fields, type Item } from "@/lib/template";
+import { defaultFields, joinNames, liveFee, type Clause, type Fields, type Item } from "@/lib/template";
 
 function cleanFields(input: Partial<Fields>): Fields {
   const d = defaultFields();
@@ -21,7 +21,37 @@ function cleanFields(input: Partial<Fields>): Fields {
     .slice(0, 20)
     .map((i) => ({ product: str(i?.product, 200), count: Math.min(200, Math.round(num(i?.count))) }))
     .filter((i) => i.product || i.count);
+  const kind = input.kind === "live" ? "live" : "video";
+  if (kind === "live") {
+    const live: Fields = {
+      ...d,
+      kind,
+      handle,
+      talentName: str(input.talentName, 120) || handle,
+      creatorEmail: str(input.creatorEmail, 200),
+      country: str(input.country, 20) || d.country,
+      startDate: str(input.startDate, 10),
+      endDate: str(input.endDate, 10),
+      effectiveDate: str(input.startDate, 10),
+      liveSchedule: str(input.liveSchedule, 300),
+      sessionLength: str(input.sessionLength, 200) || "Minimum 1 hour per session",
+      hourlyRate: num(input.hourlyRate),
+      hours: num(input.hours),
+      items: [],
+      deliverableCount: 0,
+      deliverableType: "TikTok Live",
+      product: "",
+      paidUsageDays: 0,
+      currency: (["USD", "GBP", "EUR"] as const).includes(input.currency as Fields["currency"]) ? (input.currency as Fields["currency"]) : "USD",
+      fee: 0,
+      commissionPct: num(input.commissionPct),
+      invoiceDescription: "Livestream hourly service",
+    };
+    live.fee = liveFee(live);
+    return live;
+  }
   return {
+    kind,
     handle,
     talentName: str(input.talentName, 120) || handle,
     creatorEmail: str(input.creatorEmail, 200),
@@ -53,6 +83,15 @@ function cleanClauses(input: Clause[]): Clause[] {
 
 function missingForSend(f: Fields, clauses: Clause[]): string[] {
   const miss: string[] = [];
+  if (f.kind === "live") {
+    if (!f.handle) miss.push("TikTok handle");
+    if (!f.startDate) miss.push("start date");
+    if (!f.endDate) miss.push("end date");
+    if (!(Number(f.hourlyRate) > 0)) miss.push("hourly rate");
+    if (!(Number(f.hours) > 0)) miss.push("total hours");
+    if (!clauses.length) miss.push("at least one clause");
+    return miss;
+  }
   if (!f.handle) miss.push("TikTok handle");
   if (!f.effectiveDate) miss.push("effective date");
   if (!f.startDate) miss.push("start date");

@@ -8,7 +8,7 @@ import { ContractDoc, InvoiceDoc } from "@/components/Document";
 import Stepper from "@/components/Stepper";
 import { STAGE_LABEL, billingOf, getDeal, linkToken, nextAction, stageOf, stepsDone, transferOverdue, videoGroups, videoProgress } from "@/lib/deals";
 import VideoLinks from "@/components/VideoLinks";
-import { clauseState, DEFAULT_CLAUSES, itemsOf, money } from "@/lib/template";
+import { clauseState, defaultClauses, isLive, itemsOf, money } from "@/lib/template";
 import { fmtDate, fmtWhen, type Lang, type T } from "@/lib/i18n";
 import { getT } from "@/lib/lang";
 import { origin } from "@/lib/url";
@@ -85,7 +85,7 @@ export default async function DealPage({ params }: { params: Promise<{ id: strin
   const cancelled = !!deal.cancelled_at;
   const signed = !!deal.signed_at;
   const custom = deal.clauses.filter((x) => clauseState(x) !== "standard");
-  const removed = DEFAULT_CLAUSES.filter((d) => !deal.clauses.some((x) => x.id === d.id));
+  const removed = defaultClauses(deal.fields.kind).filter((d) => !deal.clauses.some((x) => x.id === d.id));
 
   return (
     <>
@@ -94,7 +94,9 @@ export default async function DealPage({ params }: { params: Promise<{ id: strin
       </p>
       <div className="page-head">
         <div>
-          <h1>@{f.handle}</h1>
+          <h1>
+            @{f.handle} {isLive(f) && <span className="kind-tag">LIVE</span>}
+          </h1>
           <p className="muted">
             {money(f.fee, f.currency)}
             {f.commissionPct > 0 && ` + ${f.commissionPct}% ${t("commission")}`} · {t("{a} to {b}", { a: medDate(f.startDate), b: medDate(f.endDate) })} · {f.country} · {t("Manager")}: {deal.manager}
@@ -185,7 +187,9 @@ export default async function DealPage({ params }: { params: Promise<{ id: strin
 
             <Step lang={lang} done={!!deal.content_done_at} current={stage === "content"} title={t("3. Creator delivers the content")} at={deal.content_done_at}>
               <p>
-                {t("Video links submitted: {a} of {b}.", { a: vp.done, b: vp.total })} {t("When all {n} videos are posted and the creator has met the agreement, confirm it here.", { n: f.deliverableCount })}
+                {isLive(f)
+                  ? t("When the creator has hosted the agreed {n} hours of livestreams, confirm it here.", { n: f.hours || 0 })
+                  : `${t("Video links submitted: {a} of {b}.", { a: vp.done, b: vp.total })} ${t("When all {n} videos are posted and the creator has met the agreement, confirm it here.", { n: f.deliverableCount })}`}
               </p>
               <div className="row">
                 <ConfirmButton action={markContentDone.bind(null, id)} className="btn btn-primary">
@@ -249,7 +253,22 @@ export default async function DealPage({ params }: { params: Promise<{ id: strin
         </section>
       )}
 
-      {!cancelled && (
+      {!cancelled && isLive(f) && (
+        <section className="card">
+          <h2>
+            {t("Live terms")} · {t("{a} to {b}", { a: medDate(f.startDate), b: medDate(f.endDate) })}
+          </h2>
+          <ul className="files">
+            <li>
+              {t("{hours} hours x {rate} = {total}", { hours: f.hours || 0, rate: money(Number(f.hourlyRate) || 0, f.currency), total: money(f.fee, f.currency) })}
+            </li>
+            {f.liveSchedule && <li>{f.liveSchedule}</li>}
+            {f.sessionLength && <li>{f.sessionLength}</li>}
+          </ul>
+        </section>
+      )}
+
+      {!cancelled && !isLive(f) && (
         <section className="card">
           <h2>
             {t("Videos")} · {t("{a} to {b}", { a: medDate(f.startDate), b: medDate(f.endDate) })}

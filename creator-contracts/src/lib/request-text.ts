@@ -1,4 +1,4 @@
-import { itemsOf, money, totalVideos, type Fields } from "./template";
+import { isLive, itemsOf, money, totalVideos, type Fields } from "./template";
 
 // Text for the internal work-request sheet ("요청 업무 내용" column). Pure, so
 // the form can preview exactly what will be written.
@@ -21,6 +21,13 @@ export function requestText(f: Fields, opts: { purpose: string; expected?: strin
     .filter(Boolean)
     .join(", ");
   const months = contractMonths(f);
+  if (isLive(f)) {
+    const liveTerms = [`틱톡샵 라이브 ${f.hours || 0}시간`, `비용 ${money(f.fee, f.currency)} (시간당 ${money(Number(f.hourlyRate) || 0, f.currency)})`];
+    if (Number(f.commissionPct) > 0) liveTerms.push(`커미션 ${f.commissionPct}%`);
+    const out = [`${months} 라이브 송금 1건 요청`.trim(), "", `1. ${f.handle} 계약기간: ${months} | 계약 조건: ${liveTerms.join(", ")} | 추진 목적 및 기대효과: ${opts.purpose.trim() || "-"}`];
+    if (opts.expected) out.push(`송금 예상일: ${opts.expected}`);
+    return out.join("\n");
+  }
   const terms = [`틱톡샵 영상 ${totalVideos(f)}개`, `비용 ${money(f.fee, f.currency)}`];
   if (Number(f.commissionPct) > 0) terms.push(`커미션 ${f.commissionPct}%`);
   const lines = [

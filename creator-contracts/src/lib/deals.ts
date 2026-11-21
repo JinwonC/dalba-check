@@ -96,7 +96,7 @@ export const linkToken = (d: { id: string; secret: string }) => `${d.id}.${d.sec
 function summarize(d: Deal): Summary {
   const { clauses, billing_enc, signature, invoice_number, change_request, stamped_pdf_name, events, videos, ...rest } = d;
   void billing_enc, signature, invoice_number, change_request, stamped_pdf_name, events, videos;
-  return { ...rest, custom: customCount(clauses), vp: videoProgress(d) };
+  return { ...rest, custom: customCount(clauses, d.fields.kind), vp: videoProgress(d) };
 }
 
 // Dashboard cache, per server instance: a deal is re-read only when the

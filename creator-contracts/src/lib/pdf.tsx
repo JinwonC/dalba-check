@@ -7,6 +7,8 @@ import {
   campaignName,
   deliverables,
   invoiceLine,
+  isLive,
+  periodText,
   itemLines,
   fill,
   longDate,
@@ -52,6 +54,8 @@ const s = StyleSheet.create({
   c1: { flex: 1 },
   c2: { width: 90, textAlign: "center" },
   c3: { width: 90, textAlign: "right" },
+  cp: { width: 120, fontSize: 9.5 },
+  cq: { width: 62, textAlign: "center", fontSize: 10 },
   small: { fontSize: 9, color: "#444" },
   mono: { fontFamily: "Courier", fontSize: 8 },
 });
@@ -123,19 +127,30 @@ function DealPdf({ fields, clauses, billing, signature, invoiceNumber, issueDate
             <Text>{CLIENT_NAME}</Text>
           </Row>
           <Row label="Effective Date">
-            <Text style={s.b}>{longDate(fields.effectiveDate)}</Text>
+            <Text style={s.b}>{isLive(fields) ? periodText(fields) : longDate(fields.effectiveDate)}</Text>
           </Row>
           <Row label="Scope of Work">
             <Text style={s.p}>Campaign Name: {campaignName(fields)}</Text>
-            <Text style={[s.b, s.p]}>Date: {longDate(fields.startDate)}</Text>
-            <Text style={[s.b, s.p]}>Duration: {longDate(fields.endDate)}</Text>
-            <Text style={[s.b, s.p]}>Deliverable Details: {deliverables(fields)}</Text>
-            {itemLines(fields).map((l) => (
-              <Text key={l} style={[s.p, { paddingLeft: 12 }]}>
-                {l}
-              </Text>
-            ))}
-            <Text style={s.b}>Paid Usage: {fields.paidUsageDays} days</Text>
+            {isLive(fields) ? (
+              <>
+                <Text style={[s.b, s.p]}>Date and Time: {fields.liveSchedule || ""}</Text>
+                <Text style={[s.b, s.p]}>Session Length: {fields.sessionLength || ""}</Text>
+                <Text style={[s.b, s.p]}>Total Hours: {fields.hours || 0} hours</Text>
+                <Text>Exclusive Live with d&apos;Alba only (during d&apos;Alba live session showcase)</Text>
+              </>
+            ) : (
+              <>
+                <Text style={[s.b, s.p]}>Date: {longDate(fields.startDate)}</Text>
+                <Text style={[s.b, s.p]}>Duration: {longDate(fields.endDate)}</Text>
+                <Text style={[s.b, s.p]}>Deliverable Details: {deliverables(fields)}</Text>
+                {itemLines(fields).map((l) => (
+                  <Text key={l} style={[s.p, { paddingLeft: 12 }]}>
+                    {l}
+                  </Text>
+                ))}
+                <Text style={s.b}>Paid Usage: {fields.paidUsageDays} days</Text>
+              </>
+            )}
           </Row>
           <Row label="Billing Information" last>
             <Text style={s.b}>Beneficiary Name: {dash(billing.beneficiaryName)}</Text>
@@ -196,10 +211,16 @@ function DealPdf({ fields, clauses, billing, signature, invoiceNumber, issueDate
 
         <View style={s.invHead}>
           <Text style={[s.c1, s.b]}>DESCRIPTION</Text>
+          {isLive(fields) && <Text style={[s.cp, s.b]}>SERVICE PERIOD</Text>}
+          {isLive(fields) && <Text style={[s.cq, s.b]}>QTY (HOURS)</Text>}
+          {isLive(fields) && <Text style={[s.cq, s.b]}>RATE</Text>}
           <Text style={[s.c3, s.b]}>AMOUNT</Text>
         </View>
         <View style={s.invRow}>
           <Text style={s.c1}>{invoiceLine(fields)}</Text>
+          {isLive(fields) && <Text style={s.cp}>{periodText(fields)}</Text>}
+          {isLive(fields) && <Text style={s.cq}>{fields.hours || 0}</Text>}
+          {isLive(fields) && <Text style={s.cq}>{money(Number(fields.hourlyRate) || 0, fields.currency)}</Text>}
           <Text style={s.c3}>{total}</Text>
         </View>
         <View style={{ flexDirection: "row", paddingVertical: 8, paddingHorizontal: 4 }}>

@@ -3,7 +3,7 @@ import { requireUser } from "@/lib/session";
 import CopyLink from "@/components/CopyLink";
 import Stepper from "@/components/Stepper";
 import { STAGE_LABEL, daysSince, isDone, linkToken, listDeals, nextAction, stageOf, stepsDone, transferOverdue, waitingSince, type Stage, type Summary } from "@/lib/deals";
-import { itemsOf, money } from "@/lib/template";
+import { isLive, itemsOf, money } from "@/lib/template";
 import { fmtDate } from "@/lib/i18n";
 import { getT } from "@/lib/lang";
 import { origin } from "@/lib/url";
@@ -213,13 +213,19 @@ export default async function Dashboard({ searchParams }: { searchParams: Promis
                       <div className="nowrap">
                         {fmtDate(lang, d.fields.startDate) || "—"} → {fmtDate(lang, d.fields.endDate) || "—"}
                       </div>
-                      <ul className="plist">
-                        {itemsOf(d.fields).map((it, n) => (
-                          <li key={n}>
-                            <span className="pcount">{it.count}</span> <span className="pname">{it.product || "—"}</span>
-                          </li>
-                        ))}
-                      </ul>
+                      {isLive(d.fields) ? (
+                        <div className="small" style={{ marginTop: 4 }}>
+                          <span className="kind-tag">LIVE</span> {t("{hours} hours x {rate}", { hours: d.fields.hours || 0, rate: money(Number(d.fields.hourlyRate) || 0, d.fields.currency) })}
+                        </div>
+                      ) : (
+                        <ul className="plist">
+                          {itemsOf(d.fields).map((it, n) => (
+                            <li key={n}>
+                              <span className="pcount">{it.count}</span> <span className="pname">{it.product || "—"}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      )}
                       {d.custom > 0 && <span className="badge badge-warn" style={{ marginLeft: 0 }}>{t("Custom terms")}</span>}
                     </td>
                     <td>

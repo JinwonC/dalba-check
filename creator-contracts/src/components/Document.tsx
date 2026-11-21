@@ -3,6 +3,8 @@ import {
   campaignName,
   deliverables,
   invoiceLine,
+  isLive,
+  periodText,
   itemLines,
   fill,
   longDate,
@@ -76,21 +78,32 @@ export function ContractDoc({
           </tr>
           <tr>
             <th>Effective Date</th>
-            <td>{dash(longDate(fields.effectiveDate))}</td>
+            <td>{isLive(fields) ? dash(periodText(fields)) : dash(longDate(fields.effectiveDate))}</td>
           </tr>
           <tr>
             <th>Scope of Work</th>
             <td>
               <div>Campaign Name: {campaignName(fields)}</div>
-              <div>Date: {dash(longDate(fields.startDate))}</div>
-              <div>Duration: {dash(longDate(fields.endDate))}</div>
-              <div>Deliverable Details: {deliverables(fields)}</div>
-              {itemLines(fields).map((l) => (
-                <div key={l} className="doc-item">
-                  {l}
-                </div>
-              ))}
-              <div>Paid Usage: {fields.paidUsageDays} days</div>
+              {isLive(fields) ? (
+                <>
+                  <div>Date and Time: {dash(fields.liveSchedule)}</div>
+                  <div>Session Length: {dash(fields.sessionLength)}</div>
+                  <div>Total Hours: {fields.hours || 0} hours</div>
+                  <div>Exclusive Live with d&apos;Alba only (during d&apos;Alba live session showcase)</div>
+                </>
+              ) : (
+                <>
+                  <div>Date: {dash(longDate(fields.startDate))}</div>
+                  <div>Duration: {dash(longDate(fields.endDate))}</div>
+                  <div>Deliverable Details: {deliverables(fields)}</div>
+                  {itemLines(fields).map((l) => (
+                    <div key={l} className="doc-item">
+                      {l}
+                    </div>
+                  ))}
+                  <div>Paid Usage: {fields.paidUsageDays} days</div>
+                </>
+              )}
             </td>
           </tr>
           <tr>
@@ -192,26 +205,55 @@ export function InvoiceDoc({
         <br />
         {CLIENT_NAME}
       </p>
-      <table className="inv-table">
-        <thead>
-          <tr>
-            <th>Description</th>
-            <th>Amount</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr>
-            <td>{invoiceLine(fields)}</td>
-            <td>{total}</td>
-          </tr>
-        </tbody>
-        <tfoot>
-          <tr>
-            <th>Total Due</th>
-            <td>{total}</td>
-          </tr>
-        </tfoot>
-      </table>
+      {isLive(fields) ? (
+        <table className="inv-table inv-live">
+          <thead>
+            <tr>
+              <th>Description</th>
+              <th>Service period</th>
+              <th>Qty (hours)</th>
+              <th>Rate</th>
+              <th>Amount</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>{invoiceLine(fields)}</td>
+              <td>{periodText(fields)}</td>
+              <td>{fields.hours || 0}</td>
+              <td>{money(Number(fields.hourlyRate) || 0, fields.currency)}</td>
+              <td>{total}</td>
+            </tr>
+          </tbody>
+          <tfoot>
+            <tr>
+              <th colSpan={4}>Total Due</th>
+              <td>{total}</td>
+            </tr>
+          </tfoot>
+        </table>
+      ) : (
+        <table className="inv-table">
+          <thead>
+            <tr>
+              <th>Description</th>
+              <th>Amount</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>{invoiceLine(fields)}</td>
+              <td>{total}</td>
+            </tr>
+          </tbody>
+          <tfoot>
+            <tr>
+              <th>Total Due</th>
+              <td>{total}</td>
+            </tr>
+          </tfoot>
+        </table>
+      )}
       <h4 className="inv-bank">Bank Transfer Information</h4>
       <p>
         Beneficiary Name: {dash(billing.beneficiaryName)}

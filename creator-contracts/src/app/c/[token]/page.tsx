@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { billingOf, getDealByToken, updateDeal, videoGroups, videoProgress } from "@/lib/deals";
-import { longDate } from "@/lib/template";
+import { isLive, longDate } from "@/lib/template";
 import VideoLinks from "@/components/VideoLinks";
 import { submitVideo, withdrawVideo } from "./actions";
 import { ContractDoc, InvoiceDoc } from "@/components/Document";
@@ -38,10 +38,11 @@ export default async function CreatorPage({ params }: { params: Promise<{ token:
           <p className="kicker">d&apos;Alba · creator agreement</p>
           <h1>@{deal.fields.handle}</h1>
           <p className="hero-sub">
-            Your agreement is signed and your invoice is on file. Each time you post a video for this campaign, paste its link below so we can
-            keep track. Keep this page&apos;s link.
+            {isLive(deal.fields)
+              ? "Your agreement is signed and your invoice is on file. There is nothing else you need to send here. Confirm each livestream session with your d'Alba manager at least 24 hours ahead."
+              : "Your agreement is signed and your invoice is on file. Each time you post a video for this campaign, paste its link below so we can keep track. Keep this page's link."}
           </p>
-          <dl className="hero-stats">
+          <dl className="hero-stats" hidden={isLive(deal.fields)}>
             <div>
               <dt>Videos submitted</dt>
               <dd>
@@ -58,7 +59,7 @@ export default async function CreatorPage({ params }: { params: Promise<{ token:
             </div>
           </dl>
         </header>
-        <section className="card">
+        <section className="card" hidden={isLive(deal.fields)}>
           <h2>Your videos</h2>
           <VideoLinks
             groups={videoGroups(deal)}

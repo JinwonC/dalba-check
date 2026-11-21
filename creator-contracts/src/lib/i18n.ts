@@ -168,6 +168,28 @@ const KO: Record<string, string> = {
   "Sheet row": "시트 내용",
   "Already on the sheet.": "시트에 추가됨.",
 
+  // contract type
+  "Contract type": "계약 유형",
+  Video: "영상",
+  Live: "라이브",
+  "Shoppable videos: products, video counts, fixed fee": "쇼퍼블 영상: 제품, 영상 수, 고정 금액",
+  "Livestream hosting: schedule, hourly rate, hours": "라이브 방송: 일정, 시간당 금액, 시간",
+  "The type cannot be changed after the link is created.": "링크를 만든 뒤에는 유형을 바꿀 수 없습니다.",
+  "Switching the contract type replaces the clauses with the standard ones for that type. Continue?": "계약 유형을 바꾸면 조항이 그 유형의 표준 조항으로 교체됩니다. 계속할까요?",
+  "Live terms": "라이브 조건",
+  "Contract starts *": "계약 시작일 *",
+  "Contract ends *": "계약 종료일 *",
+  "Date and time of the sessions": "방송 일시",
+  "Session length": "회당 방송 시간",
+  "Hourly rate *": "시간당 금액 *",
+  "Total hours *": "총 시간 *",
+  "Invoice total: {hours} hours x {rate} = {total}": "인보이스 합계: {hours}시간 x {rate} = {total}",
+  "{hours} hours x {rate} = {total}": "{hours}시간 x {rate} = {total}",
+  "{hours} hours x {rate}": "{hours}시간 x {rate}",
+  "When the creator has hosted the agreed {n} hours of livestreams, confirm it here.": "크리에이터가 약정한 {n}시간의 라이브를 마치면 여기에 표시하세요.",
+  "hourly rate": "시간당 금액",
+  "total hours": "총 시간",
+
   // guide
   "How it works": "진행 방법",
   "How a creator contract works": "크리에이터 계약, 이렇게 진행합니다",

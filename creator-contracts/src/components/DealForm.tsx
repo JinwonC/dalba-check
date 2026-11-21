@@ -5,7 +5,7 @@ import Link from "next/link";
 import { saveDeal } from "@/app/(app)/deals/actions";
 import { useT } from "@/components/Lang";
 import { ContractDoc } from "@/components/Document";
-import { COUNTRIES, DEFAULT_CLAUSES, PLACEHOLDERS, clauseState, itemsOf, joinNames, type Clause, type Fields, type Item } from "@/lib/template";
+import { COUNTRIES, PLACEHOLDERS, clauseState, defaultClauses, itemsOf, joinNames, liveFee, money, type Clause, type Fields, type Item, type Kind } from "@/lib/template";
 
 type Props = { dealId: string | null; initialFields: Fields; initialClauses: Clause[]; live: boolean };
 
@@ -15,6 +15,7 @@ export default function DealForm({ dealId, initialFields, initialClauses, live }
   const setF = (fn: (p: Fields) => Fields) =>
     setFields((p) => {
       const n = fn(p);
+      if (n.kind === "live") return { ...n, fee: liveFee(n), effectiveDate: n.startDate };
       return { ...n, product: joinNames(n.items.map((i) => i.product)), deliverableCount: n.items.reduce((t, i) => t + (Number(i.count) || 0), 0) };
     });
   const setItem = (idx: number, patch: Partial<Item>) => setF((p) => ({ ...p, items: p.items.map((it, i) => (i === idx ? { ...it, ...patch } : it)) }));
@@ -51,7 +52,27 @@ export default function DealForm({ dealId, initialFields, initialClauses, live }
     setClauses((cs) => [...cs, { id, title: t("New clause"), body: "" }]);
     setOpen(id);
   };
-  const removed = DEFAULT_CLAUSES.filter((d) => !clauses.some((c) => c.id === d.id));
+  const isLiveDeal = f.kind === "live";
+  const standard = defaultClauses(f.kind);
+  const removed = standard.filter((d) => !clauses.some((c) => c.id === d.id));
+
+  // Switching the contract type swaps in that type's standard clauses.
+  const switchKind = (kind: Kind) => {
+    if (kind === (f.kind ?? "video")) return;
+    const edited = clauses.some((c) => clauseState(c) !== "standard");
+    if (edited && !window.confirm(t("Switching the contract type replaces the clauses with the standard ones for that type. Continue?"))) return;
+    setClauses(defaultClauses(kind));
+    setOpen(null);
+    setF((p) => ({
+      ...p,
+      kind,
+      sessionLength: p.sessionLength || "Minimum 1 hour per session",
+      items: kind === "video" && !p.items.length ? [{ product: "", count: 10 }] : p.items,
+      invoiceDescription: kind === "live" ? "Livestream hourly service" : "TikTok Shop Video Content Package",
+      deliverableType: kind === "live" ? "TikTok Live" : "TikTok shoppable videos",
+      paidUsageDays: kind === "live" ? 0 : p.paidUsageDays || 30,
+    }));
+  };
 
   const submit = (send: boolean) => {
     setError(null);
@@ -79,6 +100,21 @@ export default function DealForm({ dealId, initialFields, initialClauses, live }
       ) : (
         <>
           <section className="card">
+            <h2>{t("Contract type")}</h2>
+            <div className="kind" role="group" aria-label={t("Contract type")}>
+              <button type="button" aria-pressed={!isLiveDeal} onClick={() => switchKind("video")} disabled={live}>
+                <strong>{t("Video")}</strong>
+                <span>{t("Shoppable videos: products, video counts, fixed fee")}</span>
+              </button>
+              <button type="button" aria-pressed={isLiveDeal} onClick={() => switchKind("live")} disabled={live}>
+                <strong>{t("Live")}</strong>
+                <span>{t("Livestream hosting: schedule, hourly rate, hours")}</span>
+              </button>
+            </div>
+            {live && <p className="hint">{t("The type cannot be changed after the link is created.")}</p>}
+          </section>
+
+          <section className="card">
             <h2>{t("Creator")}</h2>
             <div className="grid">
               <label className="field">
@@ -104,6 +140,60 @@ export default function DealForm({ dealId, initialFields, initialClauses, live }
             </div>
           </section>
 
+          {isLiveDeal ? (
+            <>
+              <section className="card">
+                <h2>{t("Live terms")}</h2>
+                <div className="grid">
+                  <label className="field">
+                    <span>{t("Contract starts *")}</span>
+                    <input {...text("startDate")} type="date" />
+                  </label>
+                  <label className="field">
+                    <span>{t("Contract ends *")}</span>
+                    <input {...text("endDate")} type="date" />
+                  </label>
+                  <label className="field span-2">
+                    <span>{t("Date and time of the sessions")}</span>
+                    <input {...text("liveSchedule")} placeholder="e.g. Tue & Thu 7-9 PM ET, to be confirmed 24 hours ahead" />
+                  </label>
+                  <label className="field span-2">
+                    <span>{t("Session length")}</span>
+                    <input {...text("sessionLength")} />
+                  </label>
+                </div>
+              </section>
+              <section className="card">
+                <h2>{t("Fee and invoice")}</h2>
+                <div className="grid">
+                  <label className="field">
+                    <span>{t("Hourly rate *")}</span>
+                    <input {...number("hourlyRate")} step="0.01" placeholder="100" />
+                  </label>
+                  <label className="field">
+                    <span>{t("Total hours *")}</span>
+                    <input {...number("hours")} step="0.5" placeholder="10" />
+                  </label>
+                  <label className="field">
+                    <span>{t("Currency")}</span>
+                    <select {...text("currency")}>
+                      <option>USD</option>
+                      <option>GBP</option>
+                      <option>EUR</option>
+                    </select>
+                  </label>
+                  <label className="field">
+                    <span>{t("Commission % (0 for none)")}</span>
+                    <input {...number("commissionPct")} step="0.1" />
+                  </label>
+                </div>
+                <p className="hint">
+                  {t("Invoice total: {hours} hours x {rate} = {total}", { hours: f.hours || 0, rate: money(Number(f.hourlyRate) || 0, f.currency), total: money(liveFee(f), f.currency) })}
+                </p>
+              </section>
+            </>
+          ) : (
+            <>
           <section className="card">
             <h2>{t("Deal terms")}</h2>
             <div className="grid">
@@ -178,6 +268,9 @@ export default function DealForm({ dealId, initialFields, initialClauses, live }
             <p className="hint">{t("The invoice is generated from these values and the bank details the creator enters when signing.")}</p>
           </section>
 
+            </>
+          )}
+
           <section className="card">
             <h2>{t("Clauses")}</h2>
             <p className="hint">
@@ -189,7 +282,7 @@ export default function DealForm({ dealId, initialFields, initialClauses, live }
             </p>
             {clauses.map((c, i) => {
               const state = clauseState(c);
-              const base = DEFAULT_CLAUSES.find((d) => d.id === c.id);
+              const base = standard.find((d) => d.id === c.id);
               return (
                 <div key={c.id} className="clause">
                   <div className="clause-head">
