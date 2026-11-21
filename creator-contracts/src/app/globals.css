@@ -429,3 +429,18 @@ input, select, textarea { border-color: #cfcdc3; border-radius: var(--radius); }
 .inv-live th:nth-child(2), .inv-live td:nth-child(2) { text-align: left; width: auto; }
 .inv-live th:nth-child(n+3), .inv-live td:nth-child(n+3) { text-align: right; white-space: nowrap; }
 @media (max-width: 760px) { .kind { grid-template-columns: 1fr; } .inv-live th, .inv-live td { font-size: 12px; padding: 6px 4px; } .inv-live thead th { white-space: normal; } }
+
+/* Clause changes */
+.changes-box { margin-top: 10px; }
+.changes-box > summary { cursor: pointer; font-weight: 700; text-decoration: underline; text-underline-offset: 3px; }
+.changes-legend { margin: 10px 0 0; }
+.change { border-top: 1px solid var(--line); margin-top: 12px; padding-top: 10px; }
+.change h3 { margin: 0 0 6px; font-size: 15px; }
+.diff { white-space: pre-wrap; overflow-wrap: anywhere; font-size: 14px; line-height: 1.7; color: #45413c; max-height: 420px; overflow: auto; background: var(--bg); border-radius: 8px; padding: 10px 12px; }
+.diff-add { background: #c9f0cf; color: #0b4d17; border-radius: 3px; padding: 0 3px; margin-right: 4px; font-weight: 600; }
+.diff-del { background: #fbd9d6; color: #8c1d14; border-radius: 3px; padding: 0 3px; margin-right: 4px; text-decoration: line-through; }
+/* Delete */
+.danger-zone { border-color: #f0c4c0; }
+.danger-zone > summary h2 { color: var(--danger); }
+.btn-delete { background: var(--danger); border-color: var(--danger); color: #fff; margin-top: 10px; }
+.btn-delete:hover { background: #b81f15; border-color: #b81f15; }

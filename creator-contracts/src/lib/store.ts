@@ -1,7 +1,7 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 import crypto from "node:crypto";
-import { get, list, put } from "@vercel/blob";
+import { del, get, list, put } from "@vercel/blob";
 
 // Tiny document store. On Vercel it is a private Vercel Blob store; locally
 // (no Blob credentials) it falls back to files under .data/ for development.
@@ -33,6 +33,16 @@ export async function writeText(key: string, text: string): Promise<void> {
   const file = path.join(localDir, key);
   await fs.mkdir(path.dirname(file), { recursive: true });
   await fs.writeFile(file, text);
+}
+
+/** Delete a document or file. Missing keys are ignored. */
+export async function remove(key: string): Promise<void> {
+  if (useBlob) {
+    const hit = (await list({ prefix: key, limit: 5 })).blobs.find((b) => b.pathname === key);
+    if (hit) await del(hit.url);
+    return;
+  }
+  await fs.rm(path.join(localDir, key), { force: true });
 }
 
 /** Keys under a prefix, each with a version string that changes whenever the document is rewritten. */

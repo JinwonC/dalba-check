@@ -1,6 +1,6 @@
 import crypto from "node:crypto";
 import { decryptJson } from "./crypto";
-import { listKeys, mutate, readText } from "./store";
+import { listKeys, mutate, readText, remove } from "./store";
 import { customCount, itemsOf, type Billing, type Clause, type Fields, type Signature } from "./template";
 
 // Storage layout (private store):
@@ -101,10 +101,13 @@ function summarize(d: Deal): Summary {
 
 // Dashboard cache, per server instance: a deal is re-read only when the
 // store reports a new version of its document.
-const g = globalThis as unknown as { __deals?: Map<string, { version: string; summary: Summary }>; __fresh?: Map<string, Summary> };
+const g = globalThis as unknown as { __deals?: Map<string, { version: string; summary: Summary }>; __fresh?: Map<string, Summary>; __gone?: Set<string> };
 const cache = (g.__deals ??= new Map());
 // Deals this instance just wrote, in case the listing lags behind the write.
 const fresh = (g.__fresh ??= new Map());
+
+// Deals this instance just deleted, in case the listing still shows them for a moment.
+const gone = (g.__gone ??= new Set<string>());
 
 function remember(d: Deal) {
   fresh.set(d.id, summarize(d));
@@ -131,7 +134,18 @@ export async function listDeals(): Promise<Summary[]> {
     if (!listed || listed.updated_at < s.updated_at) byId.set(id, s);
     else fresh.delete(id);
   }
+  for (const id of gone) byId.delete(id);
   return [...byId.values()].sort((a, b) => b.created_at.localeCompare(a.created_at));
+}
+
+/** Permanently delete a deal and its uploaded stamped copy. */
+export async function destroyDeal(id: string): Promise<void> {
+  if (!ID.test(id)) return;
+  await remove(dealKey(id));
+  await remove(stampedKey(id));
+  cache.delete(dealKey(id));
+  fresh.delete(id);
+  gone.add(id);
 }
 
 export async function getDeal(id: string): Promise<Deal | null> {

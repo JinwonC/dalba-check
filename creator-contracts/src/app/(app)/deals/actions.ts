@@ -4,7 +4,7 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { requireUser } from "@/lib/session";
 import { getT } from "@/lib/lang";
-import { getDeal, addVideo, createDeal, now, stampedKey, updateDeal, type Deal } from "@/lib/deals";
+import { destroyDeal, getDeal, addVideo, createDeal, now, stampedKey, updateDeal, type Deal } from "@/lib/deals";
 import { bridgeConfigured, callBridge } from "@/lib/bridge";
 import { cleanUrl } from "@/lib/url-check";
 import { REQUEST_KINDS, requestText } from "@/lib/request-text";
@@ -407,4 +407,17 @@ export async function removeVideoLink(id: string, videoId: string): Promise<Vide
   revalidatePath("/");
   revalidatePath(`/deals/${id}`);
   return { ok: true };
+}
+
+/** Permanently delete a deal at any stage. The manager must type the creator's handle to confirm. */
+export async function deleteDeal(id: string, typedHandle: string): Promise<{ error: string } | undefined> {
+  const user = await requireUser();
+  const { t } = await getT();
+  const deal = await getDeal(id);
+  if (!deal) return { error: t("Deal not found.") };
+  if (String(typedHandle || "").trim().replace(/^@/, "").toLowerCase() !== deal.fields.handle.toLowerCase()) return { error: t("The handle does not match.") };
+  console.log(`deal deleted: ${id} @${deal.fields.handle} by ${user.name} <${user.email}>`);
+  await destroyDeal(id);
+  revalidatePath("/");
+  redirect("/");
 }

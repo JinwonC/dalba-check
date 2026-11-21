@@ -190,6 +190,20 @@ const KO: Record<string, string> = {
   "hourly rate": "시간당 금액",
   "total hours": "총 시간",
 
+  // changes + delete
+  "Show what was changed": "수정된 내용 보기",
+  "removed text": "삭제된 문구",
+  "added text": "추가된 문구",
+  Removed: "삭제됨",
+  "Delete this agreement": "이 계약 삭제",
+  "This removes the agreement, the creator's bank details, the activity record and any uploaded stamped copy from this site. The creator link stops working. It cannot be undone.":
+    "계약서, 크리에이터 은행 정보, 활동 기록, 올려둔 직인본이 이 사이트에서 모두 지워집니다. 크리에이터 링크도 더 이상 열리지 않습니다. 되돌릴 수 없습니다.",
+  "This agreement is signed. Download the signed PDF first if you need to keep a record. Files already in Google Drive and rows already on the sheet are not removed.":
+    "서명이 끝난 계약입니다. 기록이 필요하면 먼저 서명본 PDF를 내려받으세요. 이미 구글 드라이브에 저장된 파일과 시트에 올라간 행은 지워지지 않습니다.",
+  "Type the handle {handle} to confirm": "확인을 위해 핸들 {handle} 을(를) 입력하세요",
+  "Delete permanently": "영구 삭제",
+  "The handle does not match.": "핸들이 일치하지 않습니다.",
+
   // guide
   "How it works": "진행 방법",
   "How a creator contract works": "크리에이터 계약, 이렇게 진행합니다",

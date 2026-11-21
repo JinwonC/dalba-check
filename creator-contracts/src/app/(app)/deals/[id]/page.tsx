@@ -15,6 +15,8 @@ import { origin } from "@/lib/url";
 import { sheetConfigured } from "@/lib/sheets";
 import PaymentRequest from "@/components/PaymentRequest";
 import StampRequest from "@/components/StampRequest";
+import ClauseChanges from "@/components/ClauseChanges";
+import DeleteDeal from "@/components/DeleteDeal";
 import { addVideoLink, cancelDeal, clearPaymentRequest, markContentDone, markPaid, markStamped, reassignToMe, removeVideoLink, undoContentDone, undoStamped } from "../actions";
 
 export const dynamic = "force-dynamic";
@@ -121,6 +123,7 @@ export default async function DealPage({ params }: { params: Promise<{ id: strin
           <strong>{t("Custom terms.")}</strong>{" "}
           {custom.length > 0 && <>{t("Changed or added: {list}.", { list: custom.map((x) => x.title).join(", ") })} </>}
           {removed.length > 0 && <>{t("Removed: {list}.", { list: removed.map((x) => x.title).join(", ") })}</>}
+          <ClauseChanges clauses={deal.clauses} kind={f.kind} t={t} />
         </div>
       )}
 
@@ -364,6 +367,8 @@ export default async function DealPage({ params }: { params: Promise<{ id: strin
           ))}
         </ul>
       </section>
+
+      <DeleteDeal dealId={id} handle={f.handle} signed={signed} />
     </>
   );
 }
