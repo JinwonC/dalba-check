@@ -168,6 +168,8 @@ export async function uploadSignedToDrive(id: string): Promise<FolderResult> {
       folderName: `@${deal.fields.handle} ${(deal.signed_at ?? "").slice(0, 10)} (${deal.id.slice(0, 6)})`,
       fileName: pdfFileName(deal.fields, "Signed"),
       data: pdf.toString("base64"),
+      // Finance puts the stamped copy in this sub-folder.
+      subfolders: ["날인"],
     });
     const url = typeof res.url === "string" ? cleanUrl(res.url) : "";
     if (!url) return { error: t("Google Drive did not return a folder link.") };

@@ -154,7 +154,7 @@ const KO: Record<string, string> = {
   "Request stamp": "날인 요청",
   "Update request link": "요청 링크 수정",
   "Stamp requested on {date}.": "{date}에 날인 요청함.",
-  "Finance adds the stamped copy to the same folder. The transfer request later uses this same link.": "재무팀이 같은 폴더에 날인본을 넣습니다. 이후 송금 요청에도 이 링크가 그대로 쓰입니다.",
+  "Finance adds the stamped copy to the same folder. The transfer request later uses this same link.": "재무팀이 이 폴더 안의 \"날인\" 폴더에 날인본을 넣습니다. 이후 송금 요청에도 이 링크가 그대로 쓰입니다.",
   "Saved to Google Drive.": "구글 드라이브에 저장했습니다.",
   "Requested and added to the work-request sheet.": "요청을 기록하고 업무 요청 시트에 추가했습니다.",
   "Requested, but the sheet could not be updated. Copy the text and paste it into the sheet.": "요청은 기록했지만 시트에 쓰지 못했습니다. 내용을 복사해 시트에 붙여넣으세요.",

@@ -47,6 +47,10 @@ function doPost(e) {
       const old = folder.getFilesByName(body.fileName);
       while (old.hasNext()) old.next().setTrashed(true);
       folder.createFile(Utilities.newBlob(Utilities.base64Decode(body.data), 'application/pdf', body.fileName));
+      // Empty sub-folders the site asks for (e.g. "날인" for the stamped copy finance adds).
+      (body.subfolders || []).forEach(function (name) {
+        if (name && !folder.getFoldersByName(name).hasNext()) folder.createFolder(name);
+      });
       return out({ ok: true, url: folder.getUrl() });
     } else {
       throw new Error('unknown action');
