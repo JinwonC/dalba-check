@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>d'Alba 크리에이터 툴</title>
+<style>
+:root{--ink:#141414;--yellow:#f2c029;--wash:#fbefc4;--line:#e3e1d8;--muted:#6f6c62;--bg:#f9f9f7}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.55 system-ui,-apple-system,"Apple SD Gothic Neo","Malgun Gothic",sans-serif;-webkit-font-smoothing:antialiased;word-break:keep-all}
+.wrap{max-width:1040px;margin:0 auto;padding:20px 16px 72px}
+.hero{background:var(--yellow);border-radius:14px;padding:30px 28px 26px;margin-bottom:18px}
+.kicker{margin:0;font-size:12px;font-weight:700;letter-spacing:.14em}
+h1{margin:8px 0 8px;font-size:clamp(32px,6.5vw,52px);font-weight:800;letter-spacing:-.035em;line-height:1.04}
+.hero p{margin:0;max-width:56ch;font-size:16px}
+.grid{display:grid;grid-template-columns:repeat(2,1fr);gap:14px}
+a.card{display:flex;flex-direction:column;gap:8px;background:#fff;border:1px solid var(--line);border-radius:14px;padding:22px;text-decoration:none;color:inherit;min-height:190px}
+a.card:hover,a.card:focus-visible{border-color:var(--ink);box-shadow:inset 0 0 0 1px var(--ink);outline:0}
+.n{font-size:11px;font-weight:700;letter-spacing:.12em;color:var(--muted)}
+h2{margin:0;font-size:24px;letter-spacing:-.02em}
+.card p{margin:0;color:#45413c;font-size:15px}
+.use{margin:2px 0 0;padding:0;list-style:none;font-size:14px;color:var(--muted)}
+.use li::before{content:"· "}
+.go{margin-top:auto;align-self:flex-start;background:var(--ink);color:#fff;border-radius:999px;padding:7px 14px;font-size:13px;font-weight:700}
+a.card:hover .go{background:var(--yellow);color:var(--ink)}
+.foot{margin-top:22px;font-size:13px;color:var(--muted);text-align:center}
+.lang{float:right;display:inline-flex;border:1px solid var(--ink);border-radius:999px;overflow:hidden}
+.lang button{appearance:none;border:0;background:transparent;font:inherit;font-size:12.5px;padding:5px 12px;cursor:pointer;color:var(--ink)}
+.lang button+button{border-left:1px solid var(--ink)}
+.lang button[aria-pressed=true]{background:var(--ink);color:#fff;font-weight:700}
+@media (max-width:720px){.grid{grid-template-columns:1fr}a.card{min-height:0}.hero{padding:24px 20px}}
+</style>
+<script src="/nav.js" defer></script>
+</head>
+<body>
+<div class="wrap">
+  <header class="hero">
+    <div class="lang" role="group" aria-label="Language"><button type="button" data-l="ko">한국어</button><button type="button" data-l="en">English</button></div>
+    <p class="kicker" data-ko="D'ALBA · 크리에이터 파트너십" data-en="D'ALBA · CREATOR PARTNERSHIPS"></p>
+    <h1 data-ko="크리에이터 툴" data-en="Creator tools"></h1>
+    <p data-ko="크리에이터 업무에 쓰는 사이트를 한곳에 모았습니다. 어느 사이트에서든 맨 위 검은 메뉴로 서로 오갈 수 있습니다." data-en="All the sites we use for creator work, in one place. On any of them, the black menu at the top takes you to the others."></p>
+  </header>
+  <main class="grid">
+    <a class="card" href="https://dalba-creator-contracts.vercel.app/">
+      <span class="n">01</span>
+      <h2 data-ko="계약 관리" data-en="Contracts"></h2>
+      <p data-ko="계약서와 인보이스를 링크로 보내 서명받고, 날인·콘텐츠 수급·송금까지 단계별로 관리합니다." data-en="Send agreements and invoices as a link, collect signatures, and track stamp, content and payment step by step."></p>
+      <ul class="use"><li data-ko="영상 / 라이브 계약서" data-en="Video and live agreements"></li><li data-ko="날인 요청, 송금 요청 시트 자동 기록" data-en="Stamp and transfer requests go to the sheet"></li></ul>
+      <span class="go" data-ko="열기 →" data-en="Open →"></span>
+    </a>
+    <a class="card" href="https://dalba-content-analyzer.vercel.app/">
+      <span class="n">02</span>
+      <h2 data-ko="콘텐츠 분석기" data-en="Content analyzer"></h2>
+      <p data-ko="크리에이터 영상을 분석해 어떤 콘텐츠가 잘 되는지 확인합니다." data-en="Analyze creator videos to see which content performs."></p>
+      <span class="go" data-ko="열기 →" data-en="Open →"></span>
+    </a>
+    <a class="card" href="https://project-zizml.vercel.app/why.html">
+      <span class="n">03</span>
+      <h2 data-ko="매출 분석기" data-en="Sales analyzer"></h2>
+      <p data-ko="기간별 매출이 왜 오르고 내렸는지, 제품과 크리에이터 단위로 원인을 봅니다." data-en="See why sales rose or fell between two periods, by product and by creator."></p>
+      <ul class="use"><li data-ko="매출 원인 지도" data-en="Sales cause map"></li></ul>
+      <span class="go" data-ko="열기 →" data-en="Open →"></span>
+    </a>
+    <a class="card" href="https://dalba-outreach.vercel.app/index.html">
+      <span class="n">04</span>
+      <h2 data-ko="메일 아웃리치" data-en="Email outreach"></h2>
+      <p data-ko="크리에이터에게 협업 제안 메일을 보내고 회신을 추적합니다." data-en="Send collaboration emails to creators and track replies."></p>
+      <span class="go" data-ko="열기 →" data-en="Open →"></span>
+    </a>
+  </main>
+  <p class="foot" data-ko="각 사이트의 로그인은 지금처럼 따로입니다." data-en="Each site keeps its own sign-in for now."></p>
+</div>
+<script>
+(function () {
+  function get() { var m = document.cookie.match(/(?:^|; )dalba_lang=(\w+)/); return m && m[1] === "en" ? "en" : "ko"; }
+  function apply(l) {
+    document.documentElement.lang = l;
+    document.title = l === "en" ? "d'Alba creator tools" : "d'Alba 크리에이터 툴";
+    document.querySelectorAll("[data-ko]").forEach(function (el) { el.textContent = el.getAttribute("data-" + l); });
+    document.querySelectorAll(".lang button").forEach(function (b) { b.setAttribute("aria-pressed", String(b.getAttribute("data-l") === l)); });
+  }
+  document.querySelectorAll(".lang button").forEach(function (b) {
+    b.addEventListener("click", function () {
+      document.cookie = "dalba_lang=" + b.getAttribute("data-l") + "; path=/; max-age=31536000; samesite=lax";
+      location.reload();
+    });
+  });
+  apply(get());
+})();
+</script>
+</body>
+</html>

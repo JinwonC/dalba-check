@@ -1,4 +1,5 @@
 import Link from "next/link";
+import Script from "next/script";
 import { redirect } from "next/navigation";
 import { LangProvider } from "@/components/Lang";
 import LangToggle from "@/components/LangToggle";
@@ -6,11 +7,15 @@ import { getT } from "@/lib/lang";
 import { endSession, requireUser } from "@/lib/session";
 import { accountsEnabled } from "@/lib/accounts";
 
+const HUB_URL = (process.env.NEXT_PUBLIC_HUB_URL || "https://dalba-hub.vercel.app").replace(/\/$/, "");
+
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const user = await requireUser();
   const { t, lang } = await getT();
   return (
     <LangProvider lang={lang}>
+      {/* Shared d'Alba menu, the same on every tool (see /hub/nav.js). */}
+      <Script src={`${HUB_URL}/nav.js`} strategy="afterInteractive" />
       <header className="topbar">
         <Link href="/" className="brand">
           {/* eslint-disable-next-line @next/next/no-img-element */}
