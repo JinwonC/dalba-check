@@ -19,15 +19,15 @@ function loginPage(message = '') {
 <title>d'Alba · 로그인</title>
 <style>
   body{margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;
-    background:#f6f4ef;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Apple SD Gothic Neo","Malgun Gothic",sans-serif;color:#222}
-  .box{background:#fff;border:1px solid #e7e3da;border-radius:16px;padding:34px 30px;width:320px;text-align:center;box-shadow:0 8px 30px rgba(0,0,0,.06)}
+    background:#f9f9f7;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Apple SD Gothic Neo","Malgun Gothic",sans-serif;color:#141414}
+  .box{background:#fff;border:1px solid #e3e1d8;border-radius:16px;padding:34px 30px;width:320px;text-align:center;box-shadow:0 8px 30px rgba(0,0,0,.06)}
   .logo{font-size:22px;font-weight:700;letter-spacing:.5px;margin-bottom:4px}
-  .logo b{color:#b8892e}
+  .logo b{background:#f2c029;padding:0 6px;border-radius:5px}
   p{color:#666;font-size:13px;margin:0 0 18px}
-  input{width:100%;padding:13px 14px;border:1px solid #e7e3da;border-radius:10px;font-size:15px;margin-bottom:12px}
-  input:focus{outline:none;border-color:#b8892e;box-shadow:0 0 0 3px rgba(184,137,46,.15)}
-  button{width:100%;border:0;background:#1f2937;color:#fff;padding:13px;border-radius:10px;font-size:15px;font-weight:600;cursor:pointer}
-  button:hover{background:#111827}
+  input{width:100%;padding:13px 14px;border:1px solid #e3e1d8;border-radius:10px;font-size:15px;margin-bottom:12px}
+  input:focus{outline:none;border-color:#141414;box-shadow:0 0 0 3px rgba(242,192,41,.35)}
+  button{width:100%;border:0;background:#141414;color:#fff;padding:13px;border-radius:10px;font-size:15px;font-weight:600;cursor:pointer}
+  button:hover{background:#000}
   .err{color:#8a1c13;font-size:13px;margin-bottom:12px}
 </style></head>
 <body>
