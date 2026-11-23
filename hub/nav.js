@@ -17,6 +17,7 @@
     { ko: "콘텐츠 분석기", en: "Content analyzer", url: "https://dalba-content-analyzer.vercel.app/", host: "dalba-content-analyzer.vercel.app" },
     { ko: "매출 분석기", en: "Sales analyzer", url: "https://project-zizml.vercel.app/why.html", host: "project-zizml.vercel.app" },
     { ko: "메일 아웃리치", en: "Email outreach", url: "https://dalba-outreach.vercel.app/index.html", host: "dalba-outreach.vercel.app" },
+    { ko: "PM 트래커", en: "PM tracker", url: "https://price-scraper-3bee.vercel.app/", host: "price-scraper-3bee.vercel.app" },
   ];
 
   function lang() {
