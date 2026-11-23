@@ -72,8 +72,9 @@ const BROWSER_HEADERS = {
 function withApifyToken(url) {
   try {
     const u = new URL(url);
-    if (u.hostname === 'api.apify.com' && process.env.APIFY_TOKEN && !u.searchParams.has('token')) {
-      u.searchParams.set('token', process.env.APIFY_TOKEN);
+    const token = String(process.env.APIFY_TOKEN || '').trim();
+    if (u.hostname === 'api.apify.com' && token && !u.searchParams.has('token')) {
+      u.searchParams.set('token', token);
       return u.toString();
     }
   } catch {

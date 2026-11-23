@@ -7,15 +7,57 @@ const TIKTOK_ACTOR = process.env.APIFY_TIKTOK_ACTOR || 'clockworks/tiktok-scrape
 const TIKTOK_COMMENTS_ACTOR = process.env.APIFY_TIKTOK_COMMENTS_ACTOR || 'clockworks/tiktok-comments-scraper';
 const INSTAGRAM_ACTOR = process.env.APIFY_INSTAGRAM_ACTOR || 'apify/instagram-scraper';
 
+// Trimmed: a token pasted into Vercel with a stray space/newline is otherwise rejected by Apify
+// with the same "User was not found or authentication token is not valid" as a wrong token.
+export const apifyToken = () => String(process.env.APIFY_TOKEN || '').trim();
+
+const AUTH_HELP =
+  'Apify 토큰이 유효하지 않습니다 (User was not found or authentication token is not valid). ' +
+  'Vercel → Settings → Environment Variables에서 Production의 APIFY_TOKEN을 Apify 콘솔(Settings → API & Integrations)의 ' +
+  '현재 토큰으로 바꾼 뒤 Redeploy 하세요. /api/health?check=apify 로 확인할 수 있어요.';
+
+/** Turn Apify's auth failure into an actionable message; pass other errors through. */
+export function explainApifyError(err) {
+  if (err?.statusCode === 401 || err?.type === 'user-or-token-not-found' || /authentication token is not valid/i.test(String(err?.message))) {
+    const e = new Error(AUTH_HELP);
+    e.status = 502;
+    return e;
+  }
+  return err;
+}
+
 let _client = null;
+let _clientToken = '';
 function client() {
-  if (!_client) {
-    if (!process.env.APIFY_TOKEN) {
-      throw new Error('APIFY_TOKEN is not set. Add it to your .env file.');
-    }
-    _client = new ApifyClient({ token: process.env.APIFY_TOKEN });
+  const token = apifyToken();
+  if (!token) throw new Error('APIFY_TOKEN is not set. Add it to your .env file.');
+  if (!_client || _clientToken !== token) {
+    _client = new ApifyClient({ token });
+    _clientToken = token;
   }
   return _client;
+}
+
+/**
+ * Check the configured token against Apify (GET /v2/users/me). Never returns the token itself.
+ * → { configured, valid, username?, hadWhitespace, error? }
+ */
+export async function checkApifyToken() {
+  const raw = String(process.env.APIFY_TOKEN || '');
+  const token = raw.trim();
+  const out = { configured: Boolean(token), valid: false, hadWhitespace: raw !== token };
+  if (!token) return out;
+  try {
+    const res = await fetch('https://api.apify.com/v2/users/me', {
+      headers: { Authorization: `Bearer ${token}` },
+      signal: AbortSignal.timeout(8000),
+    });
+    const body = await res.json().catch(() => ({}));
+    if (res.ok) return { ...out, valid: true, username: body?.data?.username || '' };
+    return { ...out, error: body?.error?.type || `HTTP ${res.status}` };
+  } catch (e) {
+    return { ...out, error: e.message };
+  }
 }
 
 /** Detect which platform a URL belongs to. Returns 'youtube' | 'tiktok' | null. */
@@ -40,9 +82,13 @@ export function detectPlatform(url) {
 
 /** Run an actor and return its dataset items. */
 async function runActor(actorId, input) {
-  const run = await client().actor(actorId).call(input);
-  const { items } = await client().dataset(run.defaultDatasetId).listItems();
-  return items;
+  try {
+    const run = await client().actor(actorId).call(input);
+    const { items } = await client().dataset(run.defaultDatasetId).listItems();
+    return items;
+  } catch (err) {
+    throw explainApifyError(err);
+  }
 }
 
 /** Pull the first non-empty value across a list of candidate keys. */

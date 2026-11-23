@@ -8,6 +8,7 @@ import { pushToDrive, driveEnabled } from './lib/drive.js';
 import { guideToPlainText } from './lib/guideText.js';
 import { saveAnalysis, listAnalyses, getAnalysis, deleteAnalysis, migrateLegacyToUpstash } from './lib/store.js';
 import uploadHandler from './api/upload.js';
+import healthHandler from './api/health.js';
 import { loadRates } from './lib/rates.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -23,9 +24,7 @@ const send = (res, err) => {
   res.status(status).json({ error: err.message || 'Request failed.' });
 };
 
-app.get('/api/health', (_req, res) => {
-  res.json({ ok: true, apify: Boolean(process.env.APIFY_TOKEN), gemini: Boolean(process.env.GEMINI_API_KEY) });
-});
+app.get('/api/health', (req, res) => healthHandler(req, res));
 
 app.post('/api/scrape', async (req, res) => {
   try { res.json(await runScrape({ url: req.body?.url })); }

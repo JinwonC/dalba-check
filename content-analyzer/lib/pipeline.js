@@ -1,4 +1,4 @@
-import { detectPlatform, scrapeContent, scrapeTikTokComments } from './apify.js';
+import { detectPlatform, scrapeContent, scrapeTikTokComments, apifyToken } from './apify.js';
 import { downloadVideo, fetchSubtitles } from './vision.js';
 import { generateReport } from './report.js';
 import { analyzeComments } from './comments.js';
@@ -60,7 +60,7 @@ export async function runScrape({ url }) {
   if (platform !== 'tiktok' && platform !== 'instagram') {
     throw new HttpError(400, '틱톡 또는 인스타그램 링크를 입력하세요.');
   }
-  if (!process.env.APIFY_TOKEN) throw new HttpError(500, 'APIFY_TOKEN is not set on the server.');
+  if (!apifyToken()) throw new HttpError(500, 'APIFY_TOKEN is not set on the server.');
 
   const content = await scrapeContent(url);
   if (!content.videoUrl) {
@@ -98,7 +98,7 @@ export async function runComments({ url, meta = {}, comments = null }) {
   if (!list) {
     url = (url || meta.url || '').trim();
     if (detectPlatform(url) === 'tiktok') {
-      if (!process.env.APIFY_TOKEN) throw new HttpError(500, 'APIFY_TOKEN is not set on the server.');
+      if (!apifyToken()) throw new HttpError(500, 'APIFY_TOKEN is not set on the server.');
       list = await scrapeTikTokComments(url, 40);
     } else {
       list = [];
