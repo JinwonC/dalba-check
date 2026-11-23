@@ -453,3 +453,4 @@ input, select, textarea { border-color: #cfcdc3; border-radius: var(--radius); }
 .bulkbar { display: flex; align-items: center; justify-content: flex-end; gap: 12px; font-size: 13px; color: var(--muted); margin-bottom: 8px; min-height: 32px; }
 .bulkbar .btn-delete { margin-top: 0; }
 .bulkbar.on { color: var(--ink); font-weight: 600; }
+.batchlist { margin: 0; padding: 0; list-style: none; display: grid; gap: 4px; }

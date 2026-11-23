@@ -22,7 +22,7 @@ export function SelectAll() {
 export function DeleteSelected() {
   const t = useT();
   const ref = useRef<HTMLDivElement>(null);
-  const [picked, setPicked] = useState<{ handle: string; signed: boolean }[]>([]);
+  const [picked, setPicked] = useState<{ id: string; handle: string; signed: boolean }[]>([]);
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
@@ -30,7 +30,7 @@ export function DeleteSelected() {
     if (!form) return;
     const read = () =>
       setPicked(
-        [...form.querySelectorAll<HTMLInputElement>('input[name="ids"]:checked')].map((b) => ({ handle: b.dataset.handle || "", signed: b.dataset.signed === "1" })),
+        [...form.querySelectorAll<HTMLInputElement>('input[name="ids"]:checked')].map((b) => ({ id: b.value, handle: b.dataset.handle || "", signed: b.dataset.signed === "1" })),
       );
     form.addEventListener("change", read);
     read();
@@ -50,9 +50,20 @@ export function DeleteSelected() {
     form.requestSubmit();
   };
 
+  // One stamp or transfer request covering every ticked agreement.
+  const together = (kind: "stamp" | "payment") => {
+    window.location.href = `/batch?kind=${kind}&ids=${picked.map((p) => encodeURIComponent(p.id)).join(",")}`;
+  };
+
   return (
     <div ref={ref} className={picked.length ? "bulkbar on" : "bulkbar"}>
-      <span>{picked.length ? t("{n} selected", { n: picked.length }) : t("Tick agreements to delete several at once.")}</span>
+      <span>{picked.length ? t("{n} selected", { n: picked.length }) : t("Tick agreements to request or delete several at once.")}</span>
+      <button type="button" className="btn btn-sm" disabled={picked.length < 2 || busy} onClick={() => together("stamp")}>
+        {t("Stamp request together")}
+      </button>
+      <button type="button" className="btn btn-sm" disabled={picked.length < 2 || busy} onClick={() => together("payment")}>
+        {t("Transfer request together")}
+      </button>
       <button type="button" className="btn btn-sm btn-delete" disabled={!picked.length || busy} onClick={submit}>
         {busy ? t("Working…") : t("Delete selected")}
       </button>

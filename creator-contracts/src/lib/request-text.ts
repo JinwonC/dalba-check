@@ -39,3 +39,56 @@ export function requestText(f: Fields, opts: { purpose: string; expected?: strin
   if (opts.videos?.length) lines.push("", ...opts.videos);
   return lines.join("\n");
 }
+
+// ---- Several creators in one request ------------------------------------------
+
+export type BatchEntry = { fields: Fields; videos?: { url: string; at: string }[] };
+
+function productsOf(f: Fields): string {
+  return itemsOf(f)
+    .map((i) => i.product)
+    .filter(Boolean)
+    .join(", ");
+}
+
+/** "계약기간: 11월 | 계약 조건: 틱톡샵 영상 3개, 비용 $350 | 제품: 프로투" */
+export function termsLine(f: Fields): string {
+  const months = contractMonths(f);
+  if (isLive(f)) {
+    const live = [`틱톡샵 라이브 ${f.hours || 0}시간`, `비용 ${money(f.fee, f.currency)} (시간당 ${money(Number(f.hourlyRate) || 0, f.currency)})`];
+    if (Number(f.commissionPct) > 0) live.push(`커미션 ${f.commissionPct}%`);
+    return `계약기간: ${months} | 계약 조건: ${live.join(", ")}`;
+  }
+  const terms = [`틱톡샵 영상 ${totalVideos(f)}개`, `비용 ${money(f.fee, f.currency)}`];
+  if (Number(f.commissionPct) > 0) terms.push(`커미션 ${f.commissionPct}%`);
+  return `계약기간: ${months} | 계약 조건: ${terms.join(", ")} | 제품: ${productsOf(f)}`;
+}
+
+const same = (values: string[]) => (new Set(values).size === 1 ? values[0] : "");
+
+/** "11월 프로투 계약서 4건 날인 신청". Month and product are left out when the contracts differ. */
+export function batchStampTitle(list: BatchEntry[]): string {
+  const months = same(list.map((e) => contractMonths(e.fields)));
+  const products = same(list.map((e) => productsOf(e.fields)));
+  return [months, products, `계약서 ${list.length}건 날인 신청`].filter(Boolean).join(" ");
+}
+
+export function batchStampText(list: BatchEntry[], title: string, purpose: string): string {
+  const lines = list.map((e, i) => `${i + 1}. ${e.fields.handle} ${termsLine(e.fields)} | 추진 목적 및 기대효과: ${purpose.trim() || "-"}`);
+  return [title.trim(), "", ...lines].join("\n");
+}
+
+export const batchPaymentTitle = (list: BatchEntry[]) => `지출결의서 ${list.length}건 요청의 건`;
+
+/** "@handle | 11/13 업로드" then that creator's video links, one creator after another. */
+export function batchPaymentText(list: BatchEntry[], title: string): string {
+  const out = [title.trim()];
+  for (const e of list) {
+    const videos = e.videos ?? [];
+    const last = videos.map((v) => v.at).sort().pop() || "";
+    const day = /^\d{4}-(\d{2})-(\d{2})/.exec(last);
+    const note = isLive(e.fields) ? `라이브 ${e.fields.hours || 0}시간` : day ? `${Number(day[1])}/${Number(day[2])} 업로드` : "영상 링크 없음";
+    out.push(`@${e.fields.handle} | ${note}`, ...videos.map((v) => v.url));
+  }
+  return out.join("\n");
+}
