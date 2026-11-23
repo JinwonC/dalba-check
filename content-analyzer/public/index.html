@@ -1077,12 +1077,21 @@ async function openSaved(id){
     fillComments(c.analysis, c.count||0);
     $('#status').innerHTML='';
     window.scrollTo({ top: $('#layout').offsetTop-12, behavior:'smooth' });
-  }catch(e){ $('#status').innerHTML=`<div class="err">${esc(e.message)}</div>`; }
+  }catch(e){ $('#status').innerHTML=`<div class="err">${esc(friendlyError(e.message))}</div>`; }
   finally{ $('#go').disabled=false; }
 }
 
+// Map raw provider errors (Gemini billing/quota) to what the team should actually do.
+function friendlyError(raw){
+  const m = String(raw||'');
+  if(/prepayment credits are depleted|"code":\s*402|\b402\b.*billing|billing.*depleted/i.test(m))
+    return 'Gemini(구글 AI) 선불 크레딧이 모두 소진됐어요. Google AI Studio(ai.studio/projects) → 결제(Billing)에서 크레딧을 충전한 뒤 다시 시도해 주세요. 충전 전에는 링크·업로드 분석과 가이드 생성이 모두 멈춰요.';
+  if(/RESOURCE_EXHAUSTED|"code":\s*429|quota/i.test(m))
+    return 'Gemini 사용 한도를 넘었어요(요청이 몰렸거나 한도 초과). 1~2분 뒤 다시 시도하고, 계속되면 Google AI Studio에서 사용 한도·결제를 확인해 주세요.';
+  return m;
+}
 function showErr(err){
-  const msg = `<div class="err">${esc(err.message||'오류')}</div>`;
+  const msg = `<div class="err">${esc(friendlyError(err.message)||'오류')}</div>`;
   $('#status').innerHTML = msg;
   if($('#layout').style.display==='grid') $('#right').innerHTML = `<div class="card"><div class="body">${msg}<div style="margin-top:8px;color:var(--muted);font-size:12.5px">잠시 후 다시 시도해 주세요.</div></div></div>`;
 }
@@ -1111,7 +1120,7 @@ async function proceed(s, opts={}){
           : { url: s.embed?.url, meta: s.meta||{} });
         commentsRec = { analysis: c.comments_analysis, count: c.count };
         fillComments(c.comments_analysis, c.count);
-      }catch(e){ $('#commentsBody') && ($('#commentsBody').innerHTML = `<div style="color:var(--muted);font-size:13px">${esc(rl('commentsFail'))}: ${esc(e.message)}</div>`); }
+      }catch(e){ $('#commentsBody') && ($('#commentsBody').innerHTML = `<div style="color:var(--muted);font-size:13px">${esc(rl('commentsFail'))}: ${esc(friendlyError(e.message))}</div>`); }
     }
     try{
       const saved = await postJSON('/api/save', { meta:s.meta, embed:s.embed, report:rep, comments:commentsRec, video:data.video||null });
@@ -1193,7 +1202,7 @@ async function runBatch(items, tags){
       BATCH.items[i].status='done';
       BATCH.items[i].note = res?.author ? '@'+res.author : '완료';
     }catch(e){
-      BATCH.items[i].status='fail'; BATCH.items[i].note = e.message || '실패';
+      BATCH.items[i].status='fail'; BATCH.items[i].note = friendlyError(e.message) || '실패';
     }
     renderBatch();
   }
@@ -1342,7 +1351,7 @@ async function runGuide(){
         else styleReports.push(rep);
         BATCH.items[i].status='done'; BATCH.items[i].note=jobs[i].ref.creator?'@'+jobs[i].ref.creator:'완료';
         BATCH.items[i].label=`[${jobs[i].role}] `+(jobs[i].ref.creator?'@'+jobs[i].ref.creator:jobs[i].ref.label);
-      }catch(e){ BATCH.items[i].status='fail'; BATCH.items[i].note=e.message||'실패'; }
+      }catch(e){ BATCH.items[i].status='fail'; BATCH.items[i].note=friendlyError(e.message)||'실패'; }
       renderBatch();
     }
     if(hookReports.length<2) throw new Error('훅 영상 분석을 2개 이상 못 가져왔어요.');
@@ -1365,7 +1374,7 @@ async function runGuide(){
     $('#status').innerHTML='';
     GSTATE={ hookReports, bodyReport, styleReports, styleVideos: styleReports.filter(r=>r.video), productInfo, manager, prodName, pacing: dna&&dna.pacing||null };
     renderReviewPanel(hookRes, bodyReport, dna);
-  }catch(err){ $('#status').innerHTML=`<div class="err">${esc(err.message||'1단계 실패')}</div>`; if(BATCH){BATCH.finished=true;renderBatch();} }
+  }catch(err){ $('#status').innerHTML=`<div class="err">${esc(friendlyError(err.message)||'1단계 실패')}</div>`; if(BATCH){BATCH.finished=true;renderBatch();} }
   finally{ $('#guideGo').disabled=false; }
 }
 
@@ -1429,7 +1438,7 @@ async function runStylePassAll(btn){
       const { style } = await postJSON('/api/stylepass', { videoUrl: vids[i].video });
       const ko={setting:'배경',framing:'프레이밍',lighting:'조명',captions_style:'자막',editing_pace:'편집',pip_usage:'PIP',product_handling:'제품 연출',wardrobe_look:'룩',other:'기타'};
       notes.push(`[영상 ${i+1}] `+Object.entries(style||{}).filter(([,v])=>v).map(([k,v])=>(ko[k]||k)+': '+v).join(' / '));
-    }catch(e){ notes.push(`[영상 ${i+1}] 실패: ${e.message}`); }
+    }catch(e){ notes.push(`[영상 ${i+1}] 실패: ${friendlyError(e.message)}`); }
   }
   const ta=$('#rvVisual'); ta.value=(ta.value?ta.value+'\n':'')+notes.join('\n');
   btn.textContent='🎥 시청 완료 ✓';
@@ -1472,7 +1481,7 @@ async function generateFinalGuide(){
     $('#status').innerHTML='';
     renderBrief(guide, null);
     postJSON('/api/guide-save', { guide, meta }).then(r=>{ const el=$('#gDriveSlot'); if(el) el.innerHTML = r?.driveUrl?`<a class="copy" href="${esc(r.driveUrl)}" target="_blank" rel="noopener">📄 Drive에서 열기</a>`:'<span class="copy" style="opacity:.55;cursor:default">Drive 저장 안 됨</span>'; }).catch(()=>{});
-  }catch(err){ $('#status').innerHTML=`<div class="err">${esc(err.message||'가이드 생성 실패')}</div>`; }
+  }catch(err){ $('#status').innerHTML=`<div class="err">${esc(friendlyError(err.message)||'가이드 생성 실패')}</div>`; }
   finally{ btn.disabled=false; }
 }
 
