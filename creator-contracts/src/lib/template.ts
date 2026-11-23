@@ -242,9 +242,12 @@ export function money(amount: number, currency: string): string {
 
 /** "2026-09-30" -> "September 30th, 2026" (matches the existing paper template). */
 export function longDate(iso: string): string {
+  const months = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+  // A month with no day ("2026-11"): the video content window is agreed by month.
+  const ym = /^(\d{4})-(\d{2})$/.exec(iso || "");
+  if (ym) return `${months[Number(ym[2]) - 1]} ${ym[1]}`;
   const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(iso || "");
   if (!m) return "";
-  const months = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
   const d = Number(m[3]);
   const suffix = d % 10 === 1 && d !== 11 ? "st" : d % 10 === 2 && d !== 12 ? "nd" : d % 10 === 3 && d !== 13 ? "rd" : "th";
   return `${months[Number(m[2]) - 1]} ${d}${suffix}, ${m[1]}`;
@@ -283,9 +286,12 @@ export function itemLines(f: Fields): string[] {
 
 /** "Sep 30, 2026" */
 export function medDate(iso: string | null | undefined): string {
+  const short = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+  const ym = /^(\d{4})-(\d{2})$/.exec(iso || "");
+  if (ym) return `${short[Number(ym[2]) - 1]} ${ym[1]}`;
   const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(iso || "");
   if (!m) return "";
-  const mon = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"][Number(m[2]) - 1];
+  const mon = short[Number(m[2]) - 1];
   return `${mon} ${Number(m[3])}, ${m[1]}`;
 }
 

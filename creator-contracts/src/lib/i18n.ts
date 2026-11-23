@@ -4,6 +4,8 @@
 export type Lang = "ko" | "en";
 
 const KO: Record<string, string> = {
+  Month: "월",
+  Year: "연도",
   // several agreements in one request
   "Tick agreements to request or delete several at once.": "여러 건을 체크하면 한 번에 요청하거나 삭제할 수 있습니다.",
   "Stamp request together": "날인 묶어서 요청",
@@ -425,8 +427,8 @@ const KO: Record<string, string> = {
   "Total: {n} videos": "총 영상 {n}개",
   "Effective date *": "계약 효력일 *",
   "Paid usage (days)": "유료 사용 기간 (일)",
-  "Content goes live from *": "콘텐츠 게시 시작일 *",
-  "Content completed by *": "콘텐츠 완료 기한 *",
+  "Content goes live from (month) *": "콘텐츠 게시 시작 월 *",
+  "Content completed by (month) *": "콘텐츠 완료 기한 (월) *",
   "Deliverable type": "콘텐츠 유형",
   "Fee and invoice": "금액 및 인보이스",
   "Fixed fee *": "고정 금액 *",
@@ -458,7 +460,7 @@ const KO: Record<string, string> = {
   "Before creating the link, fill in: {list}.": "링크를 만들려면 다음을 입력하세요: {list}.",
   "TikTok handle": "틱톡 핸들",
   "effective date": "계약 효력일",
-  "start date": "게시 시작일",
+  "start date": "게시 시작 월",
   "end date": "완료 기한",
   "product name": "제품명",
   "number of videos per product": "제품별 영상 수",
@@ -490,6 +492,8 @@ const MON = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct
 
 /** Calendar date ("2026-12-18" or an ISO timestamp) in the reader's language. */
 export function fmtDate(lang: Lang, iso: string | null | undefined): string {
+  const ym = /^(\d{4})-(\d{2})$/.exec(iso || "");
+  if (ym) return lang === "ko" ? `${ym[1]}.${ym[2]}` : `${MON[Number(ym[2]) - 1]} ${ym[1]}`;
   const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(iso || "");
   if (!m) return "";
   return lang === "ko" ? `${m[1]}.${m[2]}.${m[3]}` : `${MON[Number(m[2]) - 1]} ${Number(m[3])}, ${m[1]}`;

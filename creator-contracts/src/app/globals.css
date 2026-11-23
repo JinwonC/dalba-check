@@ -454,3 +454,4 @@ input, select, textarea { border-color: #cfcdc3; border-radius: var(--radius); }
 .bulkbar .btn-delete { margin-top: 0; }
 .bulkbar.on { color: var(--ink); font-weight: 600; }
 .batchlist { margin: 0; padding: 0; list-style: none; display: grid; gap: 4px; }
+.monthpick { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }

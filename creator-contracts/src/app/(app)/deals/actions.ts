@@ -57,8 +57,9 @@ function cleanFields(input: Partial<Fields>): Fields {
     creatorEmail: str(input.creatorEmail, 200),
     country: str(input.country, 20) || d.country,
     effectiveDate: str(input.effectiveDate, 10),
-    startDate: str(input.startDate, 10),
-    endDate: str(input.endDate, 10),
+    // Video content is agreed by month, not by day: "2026-11".
+    startDate: str(input.startDate, 7),
+    endDate: str(input.endDate, 7),
     items,
     deliverableCount: items.reduce((n, i) => n + i.count, 0),
     deliverableType: str(input.deliverableType, 120) || d.deliverableType,

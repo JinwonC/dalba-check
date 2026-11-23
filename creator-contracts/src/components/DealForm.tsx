@@ -227,12 +227,12 @@ export default function DealForm({ dealId, initialFields, initialClauses, live }
                 <input {...number("paidUsageDays")} />
               </label>
               <label className="field">
-                <span>{t("Content goes live from *")}</span>
-                <input {...text("startDate")} type="date" />
+                <span>{t("Content goes live from (month) *")}</span>
+                <MonthPick value={f.startDate} onChange={(v) => set("startDate", v)} t={t} />
               </label>
               <label className="field">
-                <span>{t("Content completed by *")}</span>
-                <input {...text("endDate")} type="date" />
+                <span>{t("Content completed by (month) *")}</span>
+                <MonthPick value={f.endDate} onChange={(v) => set("endDate", v)} t={t} />
               </label>
               <label className="field">
                 <span>{t("Deliverable type")}</span>
@@ -354,5 +354,33 @@ export default function DealForm({ dealId, initialFields, initialClauses, live }
         </button>
       </div>
     </div>
+  );
+}
+
+/** Month and year only, stored as "2026-11". Older agreements saved with a full date open on that month. */
+function MonthPick({ value, onChange, t }: { value: string; onChange: (v: string) => void; t: (s: string) => string }) {
+  const year = value.slice(0, 4);
+  const month = value.slice(5, 7);
+  const thisYear = new Date().getFullYear();
+  const years = [...new Set([year, ...[-1, 0, 1, 2].map((n) => String(thisYear + n))])].filter(Boolean).sort();
+  const pick = (y: string, m: string) => onChange(m ? `${y || thisYear}-${m}` : "");
+  return (
+    <span className="monthpick">
+      <select aria-label={t("Month")} value={month} onChange={(e) => pick(year, e.target.value)}>
+        <option value="">{t("Month")}</option>
+        {Array.from({ length: 12 }, (_, i) => String(i + 1).padStart(2, "0")).map((m) => (
+          <option key={m} value={m}>
+            {Number(m)}
+          </option>
+        ))}
+      </select>
+      <select aria-label={t("Year")} value={year || String(thisYear)} onChange={(e) => pick(e.target.value, month)}>
+        {years.map((y) => (
+          <option key={y} value={y}>
+            {y}
+          </option>
+        ))}
+      </select>
+    </span>
   );
 }
